@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import './operator-profile.css';
 import {
   ArrowLeft,
   BedDouble,
