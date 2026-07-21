@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import './operator-profile.css';
 import { ArrowLeft, BedDouble, BriefcaseBusiness, Building2, CheckCircle2, Coffee, Compass, Database, Droplets, Gauge, LoaderCircle, MapPin, MoonStar, ShieldCheck, Sparkles, TrendingUp, Users } from 'lucide-react';
 
@@ -10,7 +10,7 @@ const zoneIcons: Record<string, typeof MoonStar> = { sleep_recovery: MoonStar, b
 export default function OperatorProfile() {
   const [data, setData] = useState<ProfileData | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => { fetch('/.netlify/functions/operator-profile?slug=curiocity-green-point').then(async r => { const p = await r.json(); if (!r.ok) throw new Error(p.error); return p; }).then(setData).catch(e => setError(e.message)); }, []);
+  useEffect(() => { fetch('/.netlify/functions/operator-profile?slug=curiocity-green-point').then(async r => { const p = await r.json(); if (!r.ok) throw new Error(p.error || 'Unable to load profile'); return p; }).then(setData).catch(e => setError(e.message)); }, []);
   if (error) return <main className="profile-state"><Database size={34}/><h1>Profile unavailable</h1><p>{error}</p><a href="/">Return to onboarding</a></main>;
   if (!data) return <main className="profile-state"><LoaderCircle className="spin" size={34}/><p>Building the property profile from live data…</p></main>;
 
@@ -28,9 +28,12 @@ export default function OperatorProfile() {
   const maxChannel = Math.max(...insights.channelMix.map(r => Number(r.stays)), 1);
   const maxMonth = Math.max(...insights.monthlyTrend.map(r => Number(r.guest_nights)), 1);
   const quality = insights.quality;
-  const coverage = useMemo(() => quality ? {
-    origin: pct(quality.rows_with_origin, quality.total_rows), channel: pct(quality.rows_with_channel, quality.total_rows), room: pct(quality.rows_with_room_type, quality.total_rows), unit: pct(quality.rows_with_unit, quality.total_rows),
-  } : null, [quality]);
+  const coverage = quality ? {
+    origin: pct(quality.rows_with_origin, quality.total_rows),
+    channel: pct(quality.rows_with_channel, quality.total_rows),
+    room: pct(quality.rows_with_room_type, quality.total_rows),
+    unit: pct(quality.rows_with_unit, quality.total_rows),
+  } : null;
 
   return <main className="operator-profile">
     <header className="profile-topbar"><a className="profile-back" href="/"><ArrowLeft size={16}/> Onboarding</a><div className="profile-brand"><span>IRL</span><strong>PROPERTY INTELLIGENCE</strong></div><div className="profile-status">Live data profile</div></header>
