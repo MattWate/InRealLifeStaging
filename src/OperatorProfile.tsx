@@ -10,7 +10,7 @@ const zoneIcons: Record<string, typeof MoonStar> = { sleep_recovery: MoonStar, b
 export default function OperatorProfile() {
   const [data, setData] = useState<ProfileData | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => { fetch('/.netlify/functions/operator-profile?slug=curiocity-green-point').then(async r => { const p = await r.json(); if (!r.ok) throw new Error(p.error || 'Unable to load profile'); return p; }).then(setData).catch(e => setError(e.message)); }, []);
+  useEffect(() => { fetch('/.netlify/functions/operator-profile?slug=curiocity-green-point').then(async r => { const p = await r.json(); if (!r.ok) throw new Error(p.error); return p; }).then(setData).catch(e => setError(e.message)); }, []);
   if (error) return <main className="profile-state"><Database size={34}/><h1>Profile unavailable</h1><p>{error}</p><a href="/">Return to onboarding</a></main>;
   if (!data) return <main className="profile-state"><LoaderCircle className="spin" size={34}/><p>Building the property profile from live data…</p></main>;
 
@@ -28,17 +28,12 @@ export default function OperatorProfile() {
   const maxChannel = Math.max(...insights.channelMix.map(r => Number(r.stays)), 1);
   const maxMonth = Math.max(...insights.monthlyTrend.map(r => Number(r.guest_nights)), 1);
   const quality = insights.quality;
-  const coverage = quality ? {
-    origin: pct(quality.rows_with_origin, quality.total_rows),
-    channel: pct(quality.rows_with_channel, quality.total_rows),
-    room: pct(quality.rows_with_room_type, quality.total_rows),
-    unit: pct(quality.rows_with_unit, quality.total_rows),
-  } : null;
+  const coverage = quality ? { origin: pct(quality.rows_with_origin, quality.total_rows), channel: pct(quality.rows_with_channel, quality.total_rows), room: pct(quality.rows_with_room_type, quality.total_rows), unit: pct(quality.rows_with_unit, quality.total_rows) } : null;
 
   return <main className="operator-profile">
     <header className="profile-topbar"><a className="profile-back" href="/"><ArrowLeft size={16}/> Onboarding</a><div className="profile-brand"><span>IRL</span><strong>PROPERTY INTELLIGENCE</strong></div><div className="profile-status">Live data profile</div></header>
 
-    <section className="profile-hero"><div className="hero-copy"><p className="profile-kicker">IRL Operator Profile</p><h1>{property.operator_name}</h1><p className="hero-location"><MapPin size={17}/> {property.name}, {property.city}</p><p className="hero-intro">{property.description_operator || property.operator_description}</p><div className="hero-tags"><span>{humanise(property.property_type)}</span><span>{property.number_of_properties || 1} locations</span><span>{humanise(property.commercial_readiness_status)}</span><span>{humanise(property.reporting_capability)}</span></div></div><div className="hero-art"><div className="hero-art-grid"/><div className="hero-art-number">{property.total_rooms || property.total_units}</div><div className="hero-art-label">guest rooms and units</div></div></section>
+    <section className="profile-hero"><div className="hero-copy"><p className="profile-kicker">IRL Operator Profile</p><h1>{property.operator_name}</h1><p className="hero-location"><MapPin size={17}/> {property.name}, {property.city}</p><p className="hero-intro">{property.description_operator || property.operator_description}</p><div className="hero-tags"><span>{humanise(property.property_type)}</span><span>{property.number_of_properties || 1} locations</span><span>{humanise(property.commercial_readiness_status)}</span><span>{humanise(property.reporting_capability)}</span></div></div><div className="hero-art"><img src="/images/curiocity/curiocity-green-point-courtyard.jpg" alt="Courtyard and communal seating area at Curiocity Green Point"/><div className="hero-art-overlay"/><div className="hero-art-number">{property.total_rooms || property.total_units}</div><div className="hero-art-label">guest rooms and units</div></div></section>
 
     <section className="profile-metrics-wrap"><Heading inverse eyebrow="Property in lived time" title="More than rooms. Time spent inside a real guest experience."/><div className="profile-metrics"><Metric value={num(metrics?.guest_nights)} label="Guest nights" note="Cumulative exposure potential"/><Metric value={num(metrics?.guest_count)} label="Guests" note="Across imported stay records"/><Metric value={num(metrics?.reservation_count)} label="Stays" note="Anonymised reservation rows"/><Metric value={metrics?.average_length_of_stay ? Number(metrics.average_length_of_stay).toFixed(1) : '—'} label="Average nights" note="Repeated-use opportunity"/></div><p className="data-period">Data period: {date(metrics?.period_start)} to {date(metrics?.period_end)} · Snapshot: {humanise(metrics?.status)}</p></section>
 
