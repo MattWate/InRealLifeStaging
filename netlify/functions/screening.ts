@@ -20,7 +20,7 @@ export const handler: Handler = async (event) => {
     return reply(405, { error: 'Method not allowed.' });
   } catch (error) {
     console.error('Screening API failed', error);
-    return reply(500, { error: error instanceof Error ? error.message : 'Screening request failed.' });
+    return reply(500, { error: readableError(error) });
   }
 };
 
@@ -70,130 +70,136 @@ async function getOne(sql: any, id: string) {
 }
 
 async function saveProspect(sql: any, body: Payload) {
-  if (!String(body.name || '').trim()) return reply(400, { error: 'Property name is required.' });
+  const name = String(body.name || '').trim();
+  if (!name) return reply(400, { error: 'Enter a property name before saving.' });
   const status = allowedStatuses.includes(body.status) ? body.status : 'researching';
-  const slug = slugify(body.slug || body.name) + (body.id ? '' : `-${Date.now().toString(36)}`);
-  const propertyTypes = JSON.stringify(array(body.property_types));
-  const bookingPlatforms = JSON.stringify(array(body.booking_platforms));
-  const communalAreas = JSON.stringify(array(body.communal_areas));
+  const slug = slugify(body.slug || name) + (body.id ? '' : `-${Date.now().toString(36)}`);
+  const propertyTypes = pgTextArray(body.property_types);
+  const bookingPlatforms = pgTextArray(body.booking_platforms);
+  const communalAreas = pgTextArray(body.communal_areas);
 
-  let existingOperatorId = body.operator_prospect_id || null;
-  if (String(body.operator_name || '').trim()) {
-    if (existingOperatorId) {
-      const updated = await sql`
-        update public.operator_prospects set
-          name=${body.operator_name}, website_url=${empty(body.operator_website)},
-          operator_type=${empty(body.operator_type)}, estimated_property_count=${numberOrNull(body.estimated_property_count)},
-          status=${status}, updated_at=now()
-        where id=${existingOperatorId}::uuid returning id
-      `;
-      existingOperatorId = updated[0]?.id || existingOperatorId;
-    } else {
-      const operatorRows = await sql`
-        insert into public.operator_prospects
-          (slug, name, website_url, operator_type, estimated_property_count, status, source, source_notes)
-        values
-          (${slugify(body.operator_name)}-${Date.now().toString(36)}, ${body.operator_name}, ${empty(body.operator_website)},
-           ${empty(body.operator_type)}, ${numberOrNull(body.estimated_property_count)}, ${status}, 'manual_screening', ${empty(body.source_notes)})
-        returning id
-      `;
-      existingOperatorId = operatorRows[0]?.id || null;
+  let stage = 'operator';
+  try {
+    let existingOperatorId = body.operator_prospect_id || null;
+    if (String(body.operator_name || '').trim()) {
+      if (existingOperatorId) {
+        const updated = await sql`
+          update public.operator_prospects set
+            name=${body.operator_name}, website_url=${empty(body.operator_website)},
+            operator_type=${empty(body.operator_type)}, estimated_property_count=${numberOrNull(body.estimated_property_count)},
+            status=${status}, updated_at=now()
+          where id=${existingOperatorId}::uuid returning id
+        `;
+        existingOperatorId = updated[0]?.id || existingOperatorId;
+      } else {
+        const operatorRows = await sql`
+          insert into public.operator_prospects
+            (slug, name, website_url, operator_type, estimated_property_count, status, source, source_notes)
+          values
+            (${slugify(body.operator_name)}-${Date.now().toString(36)}, ${body.operator_name}, ${empty(body.operator_website)},
+             ${empty(body.operator_type)}, ${numberOrNull(body.estimated_property_count)}, ${status}, 'manual_screening', ${empty(body.source_notes)})
+          returning id
+        `;
+        existingOperatorId = operatorRows[0]?.id || null;
+      }
     }
-  }
 
-  const propertyRows = body.id ? await sql`
-    update public.property_prospects set
-      operator_prospect_id = coalesce(${existingOperatorId}::uuid, operator_prospect_id),
-      name=${body.name}, website_url=${empty(body.website_url)}, address_line_1=${empty(body.address_line_1)},
-      suburb=${empty(body.suburb)}, city=${empty(body.city)}, region=${empty(body.region)}, country_code=${empty(body.country_code)},
-      property_types=coalesce((select array_agg(value) from jsonb_array_elements_text(${propertyTypes}::jsonb)), '{}'::text[]),
-      booking_platforms=coalesce((select array_agg(value) from jsonb_array_elements_text(${bookingPlatforms}::jsonb)), '{}'::text[]),
-      communal_areas=coalesce((select array_agg(value) from jsonb_array_elements_text(${communalAreas}::jsonb)), '{}'::text[]),
-      years_operating_band=${empty(body.years_operating_band)}, room_count_band=${empty(body.room_count_band)},
-      estimated_room_count=${numberOrNull(body.estimated_room_count)}, average_nightly_rate_band=${empty(body.average_nightly_rate_band)},
-      average_nightly_rate_currency=${empty(body.average_nightly_rate_currency)}, google_rating=${numberOrNull(body.google_rating)},
-      google_review_count=${numberOrNull(body.google_review_count)}, location_quality=${empty(body.location_quality)},
-      location_notes=${empty(body.location_notes)}, research_summary=${empty(body.research_summary)}, status=${status}, updated_at=now()
-    where id=${body.id}::uuid returning *
-  ` : await sql`
-    insert into public.property_prospects (
-      operator_prospect_id, slug, name, website_url, address_line_1, suburb, city, region, country_code,
-      property_types, booking_platforms, communal_areas, years_operating_band, room_count_band,
-      estimated_room_count, average_nightly_rate_band, average_nightly_rate_currency,
-      google_rating, google_review_count, location_quality, location_notes, research_summary, status
-    ) values (
-      ${existingOperatorId}::uuid, ${slug}, ${body.name}, ${empty(body.website_url)}, ${empty(body.address_line_1)},
-      ${empty(body.suburb)}, ${empty(body.city)}, ${empty(body.region)}, ${empty(body.country_code)},
-      coalesce((select array_agg(value) from jsonb_array_elements_text(${propertyTypes}::jsonb)), '{}'::text[]),
-      coalesce((select array_agg(value) from jsonb_array_elements_text(${bookingPlatforms}::jsonb)), '{}'::text[]),
-      coalesce((select array_agg(value) from jsonb_array_elements_text(${communalAreas}::jsonb)), '{}'::text[]),
-      ${empty(body.years_operating_band)}, ${empty(body.room_count_band)}, ${numberOrNull(body.estimated_room_count)},
-      ${empty(body.average_nightly_rate_band)}, ${empty(body.average_nightly_rate_currency)}, ${numberOrNull(body.google_rating)},
-      ${numberOrNull(body.google_review_count)}, ${empty(body.location_quality)}, ${empty(body.location_notes)},
-      ${empty(body.research_summary)}, ${status}
-    ) returning *
-  `;
-  if (!propertyRows.length) return reply(404, { error: 'Property prospect could not be saved.' });
-  const property = propertyRows[0];
-
-  const modelRows = await sql`select id from public.screening_models where code='irl_operator_fit' and active=true order by version desc limit 1`;
-  if (!modelRows.length) return reply(500, { error: 'Screening model not found. Run the screening schema migration.' });
-  const score = calculate(body);
-  const current = await sql`select id from public.property_screening_assessments where property_prospect_id=${property.id} order by assessment_number desc limit 1`;
-  const assessmentRows = current.length ? await sql`
-    update public.property_screening_assessments set
-      verifiable_score=${score.verifiable}, verifiable_points_available=${score.verifiableAvailable},
-      visual_score=${score.visual}, visual_points_available=${score.visualAvailable}, total_score=${score.total},
-      total_points_available=${score.available}, normalised_score=${score.normalised}, completion_percentage=${score.completion},
-      confidence_level=${score.confidence}, score_tier=${score.tier}, recommended_action=${score.action},
-      assessment_status=${body.assessment_status || 'draft'}, summary=${empty(body.assessment_summary)},
-      reviewer_notes=${empty(body.reviewer_notes)}, updated_at=now()
-    where id=${current[0].id} returning *
-  ` : await sql`
-    insert into public.property_screening_assessments (
-      property_prospect_id, screening_model_id, assessment_number, assessment_status,
-      verifiable_score, verifiable_points_available, visual_score, visual_points_available,
-      total_score, total_points_available, normalised_score, completion_percentage,
-      confidence_level, score_tier, recommended_action, summary, reviewer_notes
-    ) values (
-      ${property.id}, ${modelRows[0].id}, 1, ${body.assessment_status || 'draft'},
-      ${score.verifiable}, ${score.verifiableAvailable}, ${score.visual}, ${score.visualAvailable},
-      ${score.total}, ${score.available}, ${score.normalised}, ${score.completion}, ${score.confidence},
-      ${score.tier}, ${score.action}, ${empty(body.assessment_summary)}, ${empty(body.reviewer_notes)}
-    ) returning *
-  `;
-  const assessment = assessmentRows[0];
-
-  for (const [fieldKey, answer] of Object.entries(body.answers || {})) {
-    if (answer === '' || answer === null || answer === undefined || (Array.isArray(answer) && !answer.length)) continue;
-    await sql`
-      insert into public.property_screening_answers
-        (assessment_id, field_key, answer_json, evidence_status, source_type)
-      values (${assessment.id}, ${fieldKey}, ${JSON.stringify(answer)}::jsonb, 'unverified', 'partner_input')
-      on conflict (assessment_id, field_key)
-      do update set answer_json=excluded.answer_json, updated_at=now()
+    stage = 'property';
+    const propertyRows = body.id ? await sql`
+      update public.property_prospects set
+        operator_prospect_id = coalesce(${existingOperatorId}::uuid, operator_prospect_id),
+        name=${name}, website_url=${empty(body.website_url)}, address_line_1=${empty(body.address_line_1)},
+        suburb=${empty(body.suburb)}, city=${empty(body.city)}, region=${empty(body.region)}, country_code=${countryCode(body.country_code)},
+        property_types=${propertyTypes}::text[], booking_platforms=${bookingPlatforms}::text[], communal_areas=${communalAreas}::text[],
+        years_operating_band=${empty(body.years_operating_band)}, room_count_band=${empty(body.room_count_band)},
+        estimated_room_count=${numberOrNull(body.estimated_room_count)}, average_nightly_rate_band=${empty(body.average_nightly_rate_band)},
+        average_nightly_rate_currency=${currencyCode(body.average_nightly_rate_currency)}, google_rating=${numberOrNull(body.google_rating)},
+        google_review_count=${numberOrNull(body.google_review_count)}, location_quality=${empty(body.location_quality)},
+        location_notes=${empty(body.location_notes)}, research_summary=${empty(body.research_summary)}, status=${status}, updated_at=now()
+      where id=${body.id}::uuid returning *
+    ` : await sql`
+      insert into public.property_prospects (
+        operator_prospect_id, slug, name, website_url, address_line_1, suburb, city, region, country_code,
+        property_types, booking_platforms, communal_areas, years_operating_band, room_count_band,
+        estimated_room_count, average_nightly_rate_band, average_nightly_rate_currency,
+        google_rating, google_review_count, location_quality, location_notes, research_summary, status
+      ) values (
+        ${existingOperatorId}::uuid, ${slug}, ${name}, ${empty(body.website_url)}, ${empty(body.address_line_1)},
+        ${empty(body.suburb)}, ${empty(body.city)}, ${empty(body.region)}, ${countryCode(body.country_code)},
+        ${propertyTypes}::text[], ${bookingPlatforms}::text[], ${communalAreas}::text[],
+        ${empty(body.years_operating_band)}, ${empty(body.room_count_band)}, ${numberOrNull(body.estimated_room_count)},
+        ${empty(body.average_nightly_rate_band)}, ${currencyCode(body.average_nightly_rate_currency)}, ${numberOrNull(body.google_rating)},
+        ${numberOrNull(body.google_review_count)}, ${empty(body.location_quality)}, ${empty(body.location_notes)},
+        ${empty(body.research_summary)}, ${status}
+      ) returning *
     `;
-  }
+    if (!propertyRows.length) return reply(404, { error: 'Property prospect could not be saved.' });
+    const property = propertyRows[0];
 
-  if (Array.isArray(body.socials)) {
-    for (const social of body.socials) {
-      if (!social.platform) continue;
+    stage = 'model';
+    const modelRows = await sql`select id from public.screening_models where code='irl_operator_fit' and active=true order by version desc limit 1`;
+    if (!modelRows.length) return reply(500, { error: 'Screening model not found. Run the screening schema migration.' });
+
+    stage = 'assessment';
+    const score = calculate(body);
+    const current = await sql`select id from public.property_screening_assessments where property_prospect_id=${property.id} order by assessment_number desc limit 1`;
+    const assessmentRows = current.length ? await sql`
+      update public.property_screening_assessments set
+        verifiable_score=${score.verifiable}, verifiable_points_available=${score.verifiableAvailable},
+        visual_score=${score.visual}, visual_points_available=${score.visualAvailable}, total_score=${score.total},
+        total_points_available=${score.available}, normalised_score=${score.normalised}, completion_percentage=${score.completion},
+        confidence_level=${score.confidence}, score_tier=${score.tier}, recommended_action=${score.action},
+        assessment_status=${body.assessment_status || 'draft'}, summary=${empty(body.assessment_summary)},
+        reviewer_notes=${empty(body.reviewer_notes)}, updated_at=now()
+      where id=${current[0].id} returning *
+    ` : await sql`
+      insert into public.property_screening_assessments (
+        property_prospect_id, screening_model_id, assessment_number, assessment_status,
+        verifiable_score, verifiable_points_available, visual_score, visual_points_available,
+        total_score, total_points_available, normalised_score, completion_percentage,
+        confidence_level, score_tier, recommended_action, summary, reviewer_notes
+      ) values (
+        ${property.id}, ${modelRows[0].id}, 1, ${body.assessment_status || 'draft'},
+        ${score.verifiable}, ${score.verifiableAvailable}, ${score.visual}, ${score.visualAvailable},
+        ${score.total}, ${score.available}, ${score.normalised}, ${score.completion}, ${score.confidence},
+        ${score.tier}, ${score.action}, ${empty(body.assessment_summary)}, ${empty(body.reviewer_notes)}
+      ) returning *
+    `;
+    const assessment = assessmentRows[0];
+
+    stage = 'answers';
+    for (const [fieldKey, answer] of Object.entries(body.answers || {})) {
+      if (answer === '' || answer === null || answer === undefined || (Array.isArray(answer) && !answer.length)) continue;
       await sql`
-        insert into public.property_prospect_social_channels
-          (property_prospect_id, platform, handle, profile_url, follower_count, engagement_notes)
-        values (${property.id}, ${social.platform}, ${empty(social.handle)}, ${empty(social.profile_url)},
-          ${numberOrNull(social.follower_count)}, ${empty(social.engagement_notes)})
-        on conflict (property_prospect_id, platform)
-        do update set handle=excluded.handle, profile_url=excluded.profile_url,
-          follower_count=excluded.follower_count, engagement_notes=excluded.engagement_notes, updated_at=now()
+        insert into public.property_screening_answers
+          (assessment_id, field_key, answer_json, evidence_status, source_type)
+        values (${assessment.id}, ${fieldKey}, ${JSON.stringify(answer)}::jsonb, 'unverified', 'partner_input')
+        on conflict (assessment_id, field_key)
+        do update set answer_json=excluded.answer_json, updated_at=now()
       `;
     }
+
+    stage = 'socials';
+    if (Array.isArray(body.socials)) {
+      for (const social of body.socials) {
+        if (!social.platform) continue;
+        await sql`
+          insert into public.property_prospect_social_channels
+            (property_prospect_id, platform, handle, profile_url, follower_count, engagement_notes)
+          values (${property.id}, ${social.platform}, ${empty(social.handle)}, ${empty(social.profile_url)},
+            ${numberOrNull(social.follower_count)}, ${empty(social.engagement_notes)})
+          on conflict (property_prospect_id, platform)
+          do update set handle=excluded.handle, profile_url=excluded.profile_url,
+            follower_count=excluded.follower_count, engagement_notes=excluded.engagement_notes, updated_at=now()
+        `;
+      }
+    }
+
+    return reply(200, { property, assessment });
+  } catch (error) {
+    console.error(`Screening save failed at ${stage}`, error);
+    return reply(500, { error: `Save failed while writing ${stage}: ${readableError(error)}` });
   }
-
-  if (body.new_note) await sql`insert into public.property_screening_notes (property_prospect_id, assessment_id, note_type, body) values (${property.id}, ${assessment.id}, ${body.note_type || 'general'}, ${body.new_note})`;
-  if (body.decision) await sql`insert into public.property_screening_decisions (property_prospect_id, assessment_id, decision, rationale, next_action, next_review_date) values (${property.id}, ${assessment.id}, ${body.decision}, ${empty(body.decision_rationale)}, ${empty(body.next_action)}, ${empty(body.next_review_date)}::date)`;
-
-  return reply(200, { property, assessment });
 }
 
 function calculate(body: Payload) {
@@ -216,18 +222,28 @@ function calculate(body: Payload) {
   }
   const followers=array(body.socials).reduce((sum:number,s:any)=>sum+(Number(s.follower_count)||0),0);
   if(array(body.socials).length){va+=4;v+=followers>=10000?4:followers>=2000?3:followers>0?2:1;}
-  if(communal.length){visualAvailable+=5;visual+=communal.length>=4?5:communal.length;}
+  if(communal.length){visualAvailable+=5;visual+=Math.min(5,communal.length);}
   for(const key of ['design_aesthetic','bathroom_quality','kitchen_coffee_quality','cleanliness']){const n=Number(a[key]);if(n){visualAvailable+=5;visual+=Math.min(5,n);}}
-  const total=v+visual, available=va+visualAvailable, completion=Math.round(available/65*100);
-  const normalised=available?Math.round(total/available*10000)/100:null;
+  const total=v+visual,available=va+visualAvailable,completion=Math.round(available/65*100),normalised=available?Math.round(total/available*10000)/100:null;
   const confidence=completion>=80?'high':completion>=45?'medium':'low';
   const tier=normalised==null?null:normalised>=80?'strong_approach':normalised>=60?'good_fit':normalised>=40?'marginal':'not_right_now';
-  const action=tier==null?'continue_research':tier==='strong_approach'?'approach':tier==='good_fit'?'continue_research':tier==='marginal'?'hold':'reject';
-  return {verifiable:v,verifiableAvailable:va,visual,visualAvailable,total,available,completion,normalised,confidence,tier,action};
+  const action=normalised==null?'continue_research':tier==='strong_approach'?'approach':tier==='good_fit'?'continue_research':tier==='marginal'?'hold':'reject';
+  return{verifiable:v,verifiableAvailable:va,visual,visualAvailable,total,available,completion,normalised,confidence,tier,action};
 }
 
-function array(value: unknown): any[] { return Array.isArray(value) ? value : []; }
+function pgTextArray(value: unknown) {
+  const values = array(value).map((item) => String(item).replace(/\\/g, '\\\\').replace(/"/g, '\\"'));
+  return `{${values.map((item) => `"${item}"`).join(',')}}`;
+}
+function countryCode(value: unknown) { const text=String(value||'').trim().toUpperCase(); return /^[A-Z]{2}$/.test(text)?text:null; }
+function currencyCode(value: unknown) { const text=String(value||'').trim().toUpperCase(); return /^[A-Z]{3}$/.test(text)?text:null; }
+function array(value: unknown): any[] { return Array.isArray(value)?value:[]; }
 function empty(value: unknown) { const text=String(value??'').trim(); return text||null; }
-function numberOrNull(value: unknown) { const n=Number(value); return Number.isFinite(n)&&String(value).trim()!==''?n:null; }
+function numberOrNull(value: unknown) { const number=Number(value); return Number.isFinite(number)&&String(value).trim()!==''?number:null; }
 function slugify(value: unknown) { return String(value||'prospect').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,70); }
-function reply(statusCode:number, body:unknown) { return {statusCode,headers:{'content-type':'application/json','cache-control':'no-store'},body:JSON.stringify(body)}; }
+function readableError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) return String((error as any).message);
+  return 'Unknown database error.';
+}
+function reply(statusCode:number,body:unknown){return{statusCode,headers:{'content-type':'application/json','cache-control':'no-store'},body:JSON.stringify(body)}}
