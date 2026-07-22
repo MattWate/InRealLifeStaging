@@ -8,14 +8,14 @@ export const handler: Handler = async (event) => {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) return reply(500, { error: 'DATABASE_URL is not configured.' });
   const sql = neon(databaseUrl);
+
   try {
     if (event.httpMethod === 'GET') {
       const id = event.queryStringParameters?.id;
       return id ? getOne(sql, id) : getList(sql);
     }
     if (event.httpMethod === 'POST' || event.httpMethod === 'PUT') {
-      const body = JSON.parse(event.body || '{}') as Payload;
-      return saveProspect(sql, body);
+      return saveProspect(sql, JSON.parse(event.body || '{}') as Payload);
     }
     return reply(405, { error: 'Method not allowed.' });
   } catch (error) {
@@ -53,6 +53,7 @@ async function getOne(sql: any, id: string) {
     where pp.id = ${id}::uuid limit 1
   `;
   if (!properties.length) return reply(404, { error: 'Screening record not found.' });
+
   const property = properties[0];
   const assessments = await sql`
     select * from public.property_screening_assessments
@@ -72,42 +73,56 @@ async function getOne(sql: any, id: string) {
 async function saveProspect(sql: any, body: Payload) {
   const name = String(body.name || '').trim();
   if (!name) return reply(400, { error: 'Enter a property name before saving.' });
+
   const status = allowedStatuses.includes(body.status) ? body.status : 'researching';
-  const slug = slugify(body.slug || name) + (body.id ? '' : `-${Date.now().toString(36)}`);
+  const propertySlug = slugify(body.slug || name) + (body.id ? '' : `-${Date.now().toString(36)}`);
   const propertyTypes = pgTextArray(body.property_types);
   const bookingPlatforms = pgTextArray(body.booking_platforms);
   const communalAreas = pgTextArray(body.communal_areas);
 
   let stage = 'operator';
   try {
-    let existingOperatorId = body.operator_prospect_id || null;
-    if (String(body.operator_name || '').trim()) {
-      if (existingOperatorId) {
+    let operatorId = body.operator_prospect_id || null;
+    const operatorName = String(body.operator_name || '').trim();
+
+    if (operatorName) {
+      if (!operatorId) {
+        const existing = await sql`
+          select id from public.operator_prospects
+          where lower(name) = lower(${operatorName})
+          order by updated_at desc
+          limit 1
+        `;
+        operatorId = existing[0]?.id || null;
+      }
+
+      if (operatorId) {
         const updated = await sql`
           update public.operator_prospects set
-            name=${body.operator_name}, website_url=${empty(body.operator_website)},
+            name=${operatorName}, website_url=${empty(body.operator_website)},
             operator_type=${empty(body.operator_type)}, estimated_property_count=${numberOrNull(body.estimated_property_count)},
             status=${status}, updated_at=now()
-          where id=${existingOperatorId}::uuid returning id
+          where id=${operatorId}::uuid returning id
         `;
-        existingOperatorId = updated[0]?.id || existingOperatorId;
+        operatorId = updated[0]?.id || operatorId;
       } else {
-        const operatorRows = await sql`
+        const operatorSlug = `${slugify(operatorName)}-${Date.now().toString(36)}`;
+        const inserted = await sql`
           insert into public.operator_prospects
             (slug, name, website_url, operator_type, estimated_property_count, status, source, source_notes)
           values
-            (${slugify(body.operator_name)}-${Date.now().toString(36)}, ${body.operator_name}, ${empty(body.operator_website)},
-             ${empty(body.operator_type)}, ${numberOrNull(body.estimated_property_count)}, ${status}, 'manual_screening', ${empty(body.source_notes)})
+            (${operatorSlug}, ${operatorName}, ${empty(body.operator_website)}, ${empty(body.operator_type)},
+             ${numberOrNull(body.estimated_property_count)}, ${status}, 'manual_screening', ${empty(body.source_notes)})
           returning id
         `;
-        existingOperatorId = operatorRows[0]?.id || null;
+        operatorId = inserted[0]?.id || null;
       }
     }
 
     stage = 'property';
     const propertyRows = body.id ? await sql`
       update public.property_prospects set
-        operator_prospect_id = coalesce(${existingOperatorId}::uuid, operator_prospect_id),
+        operator_prospect_id=coalesce(${operatorId}::uuid, operator_prospect_id),
         name=${name}, website_url=${empty(body.website_url)}, address_line_1=${empty(body.address_line_1)},
         suburb=${empty(body.suburb)}, city=${empty(body.city)}, region=${empty(body.region)}, country_code=${countryCode(body.country_code)},
         property_types=${propertyTypes}::text[], booking_platforms=${bookingPlatforms}::text[], communal_areas=${communalAreas}::text[],
@@ -124,7 +139,7 @@ async function saveProspect(sql: any, body: Payload) {
         estimated_room_count, average_nightly_rate_band, average_nightly_rate_currency,
         google_rating, google_review_count, location_quality, location_notes, research_summary, status
       ) values (
-        ${existingOperatorId}::uuid, ${slug}, ${name}, ${empty(body.website_url)}, ${empty(body.address_line_1)},
+        ${operatorId}::uuid, ${propertySlug}, ${name}, ${empty(body.website_url)}, ${empty(body.address_line_1)},
         ${empty(body.suburb)}, ${empty(body.city)}, ${empty(body.region)}, ${countryCode(body.country_code)},
         ${propertyTypes}::text[], ${bookingPlatforms}::text[], ${communalAreas}::text[],
         ${empty(body.years_operating_band)}, ${empty(body.room_count_band)}, ${numberOrNull(body.estimated_room_count)},
@@ -133,12 +148,13 @@ async function saveProspect(sql: any, body: Payload) {
         ${empty(body.research_summary)}, ${status}
       ) returning *
     `;
+
     if (!propertyRows.length) return reply(404, { error: 'Property prospect could not be saved.' });
     const property = propertyRows[0];
 
     stage = 'model';
-    const modelRows = await sql`select id from public.screening_models where code='irl_operator_fit' and active=true order by version desc limit 1`;
-    if (!modelRows.length) return reply(500, { error: 'Screening model not found. Run the screening schema migration.' });
+    const models = await sql`select id from public.screening_models where code='irl_operator_fit' and active=true order by version desc limit 1`;
+    if (!models.length) return reply(500, { error: 'Screening model not found. Run the screening schema migration.' });
 
     stage = 'assessment';
     const score = calculate(body);
@@ -159,7 +175,7 @@ async function saveProspect(sql: any, body: Payload) {
         total_score, total_points_available, normalised_score, completion_percentage,
         confidence_level, score_tier, recommended_action, summary, reviewer_notes
       ) values (
-        ${property.id}, ${modelRows[0].id}, 1, ${body.assessment_status || 'draft'},
+        ${property.id}, ${models[0].id}, 1, ${body.assessment_status || 'draft'},
         ${score.verifiable}, ${score.verifiableAvailable}, ${score.visual}, ${score.visualAvailable},
         ${score.total}, ${score.available}, ${score.normalised}, ${score.completion}, ${score.confidence},
         ${score.tier}, ${score.action}, ${empty(body.assessment_summary)}, ${empty(body.reviewer_notes)}
@@ -180,19 +196,17 @@ async function saveProspect(sql: any, body: Payload) {
     }
 
     stage = 'socials';
-    if (Array.isArray(body.socials)) {
-      for (const social of body.socials) {
-        if (!social.platform) continue;
-        await sql`
-          insert into public.property_prospect_social_channels
-            (property_prospect_id, platform, handle, profile_url, follower_count, engagement_notes)
-          values (${property.id}, ${social.platform}, ${empty(social.handle)}, ${empty(social.profile_url)},
-            ${numberOrNull(social.follower_count)}, ${empty(social.engagement_notes)})
-          on conflict (property_prospect_id, platform)
-          do update set handle=excluded.handle, profile_url=excluded.profile_url,
-            follower_count=excluded.follower_count, engagement_notes=excluded.engagement_notes, updated_at=now()
-        `;
-      }
+    for (const social of array(body.socials)) {
+      if (!social.platform) continue;
+      await sql`
+        insert into public.property_prospect_social_channels
+          (property_prospect_id, platform, handle, profile_url, follower_count, engagement_notes)
+        values (${property.id}, ${social.platform}, ${empty(social.handle)}, ${empty(social.profile_url)},
+          ${numberOrNull(social.follower_count)}, ${empty(social.engagement_notes)})
+        on conflict (property_prospect_id, platform)
+        do update set handle=excluded.handle, profile_url=excluded.profile_url,
+          follower_count=excluded.follower_count, engagement_notes=excluded.engagement_notes, updated_at=now()
+      `;
     }
 
     return reply(200, { property, assessment });
@@ -208,9 +222,18 @@ function calculate(body: Payload) {
   const platforms = array(body.booking_platforms);
   const communal = array(body.communal_areas);
   let v=0, va=0, visual=0, visualAvailable=0;
-  if (propertyTypes.length) { va+=4; v+=propertyTypes.some((x:string)=>['boutique_hotel','guesthouse','b_and_b','villa'].includes(x))?4:propertyTypes.some((x:string)=>['serviced_apartment','self_catering_cottage','loft','townhouse'].includes(x))?3:2; }
-  if (platforms.length) { va+=4; v+=platforms.includes('direct_website')||platforms.length>=3?4:platforms.length===2?2:1; }
-  const maps:Record<string,Record<string,number>>={
+
+  if (propertyTypes.length) {
+    va += 4;
+    v += propertyTypes.some((x:string)=>['boutique_hotel','guesthouse','b_and_b','villa'].includes(x)) ? 4
+      : propertyTypes.some((x:string)=>['serviced_apartment','self_catering_cottage','loft','townhouse'].includes(x)) ? 3 : 2;
+  }
+  if (platforms.length) {
+    va += 4;
+    v += platforms.includes('direct_website') || platforms.length >= 3 ? 4 : platforms.length === 2 ? 2 : 1;
+  }
+
+  const maps:Record<string,Record<string,number>> = {
     years_operating_band:{less_than_1:2,'1_to_2':4,'3_to_5':6,'6_plus':8},
     room_count_band:{'1_to_5':2,'6_to_10':4,'11_to_20':6,'21_to_50':7,'50_plus':8},
     rating_band:{below_4:1,'4_0_to_4_3':4,'4_4_to_4_6':6,'4_7_to_5':8},
@@ -218,17 +241,25 @@ function calculate(body: Payload) {
     location_quality:{mixed_or_up_and_coming:2,good_lifestyle_suburb:3,prime_lifestyle_suburb:4,other:0},
   };
   for (const [key,max] of [['years_operating_band',8],['room_count_band',8],['rating_band',8],['average_nightly_rate_band',8],['location_quality',4]] as [string,number][]) {
-    const val=body[key]||a[key]; if(val){va+=max;v+=maps[key][val]??0;}
+    const val = body[key] || a[key];
+    if (val) { va += max; v += maps[key][val] ?? 0; }
   }
-  const followers=array(body.socials).reduce((sum:number,s:any)=>sum+(Number(s.follower_count)||0),0);
-  if(array(body.socials).length){va+=4;v+=followers>=10000?4:followers>=2000?3:followers>0?2:1;}
-  if(communal.length){visualAvailable+=5;visual+=Math.min(5,communal.length);}
-  for(const key of ['design_aesthetic','bathroom_quality','kitchen_coffee_quality','cleanliness']){const n=Number(a[key]);if(n){visualAvailable+=5;visual+=Math.min(5,n);}}
-  const total=v+visual,available=va+visualAvailable,completion=Math.round(available/65*100),normalised=available?Math.round(total/available*10000)/100:null;
+
+  const followers = array(body.socials).reduce((sum:number,s:any)=>sum+(Number(s.follower_count)||0),0);
+  if (array(body.socials).length) { va += 4; v += followers>=10000?4:followers>=2000?3:followers>0?2:1; }
+  if (communal.length) { visualAvailable += 5; visual += Math.min(5, communal.length); }
+  for (const key of ['design_aesthetic','bathroom_quality','kitchen_coffee_quality','cleanliness']) {
+    const n = Number(a[key]);
+    if (n) { visualAvailable += 5; visual += Math.min(5,n); }
+  }
+
+  const total=v+visual, available=va+visualAvailable;
+  const completion=Math.round(available/65*100);
+  const normalised=available?Math.round(total/available*10000)/100:null;
   const confidence=completion>=80?'high':completion>=45?'medium':'low';
   const tier=normalised==null?null:normalised>=80?'strong_approach':normalised>=60?'good_fit':normalised>=40?'marginal':'not_right_now';
   const action=normalised==null?'continue_research':tier==='strong_approach'?'approach':tier==='good_fit'?'continue_research':tier==='marginal'?'hold':'reject';
-  return{verifiable:v,verifiableAvailable:va,visual,visualAvailable,total,available,completion,normalised,confidence,tier,action};
+  return {verifiable:v,verifiableAvailable:va,visual,visualAvailable,total,available,completion,normalised,confidence,tier,action};
 }
 
 function pgTextArray(value: unknown) {
