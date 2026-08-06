@@ -5,8 +5,11 @@ import App from './App';
 import OperatorProfile from './OperatorProfile';
 import Screening from './Screening';
 import RateEngine from './RateEngine';
+import { initOnboardingPersistence } from './onboarding-persistence';
 import './styles.css';
 import './operator-profile-insights.css';
+
+initOnboardingPersistence();
 
 const path = window.location.pathname;
 const page = path.startsWith('/screening')
