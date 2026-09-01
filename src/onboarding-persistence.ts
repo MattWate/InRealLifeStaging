@@ -48,7 +48,7 @@ export function initOnboardingPersistence() {
   window.addEventListener('beforeunload', () => {
     if (!queuedDraft || !queuedFlow) return;
     const payload = buildPayload(queuedDraft, queuedFlow, queuedSubmit);
-    navigator.sendBeacon('/.netlify/functions/onboarding', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    navigator.sendBeacon(endpointFor(queuedFlow), new Blob([JSON.stringify(payload)], { type: 'application/json' }));
   });
 }
 
@@ -74,7 +74,7 @@ async function flush() {
   saving = true;
   setSaveLabel(submit ? 'Submitting profile…' : 'Saving online…');
   try {
-    const response = await fetch('/.netlify/functions/onboarding', {
+    const response = await fetch(endpointFor(flow), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(buildPayload(draft, flow, submit)),
@@ -86,7 +86,6 @@ async function flush() {
 
     if (data.session_id) {
       originalSetItem(sessionStorageKey(flow), data.session_id);
-      // Backwards compatibility for operator sessions created before flow-specific keys.
       if (flow === 'operator') originalSetItem('irl-onboarding-session', data.session_id);
     }
     setSaveLabel(submit ? 'Profile submitted to IRL' : `Saved online at ${formatTime(data.saved_at)}`);
@@ -97,6 +96,10 @@ async function flush() {
     saving = false;
     if (queuedDraft) window.setTimeout(flush, 0);
   }
+}
+
+function endpointFor(flow: Flow) {
+  return flow === 'brand' ? '/.netlify/functions/brand-onboarding' : '/.netlify/functions/onboarding';
 }
 
 function buildPayload(form: Draft, flow: Flow, submit: boolean) {
