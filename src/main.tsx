@@ -9,6 +9,7 @@ import RateEngine from './RateEngine';
 import { initOnboardingPersistence } from './onboarding-persistence';
 import './styles/global.css';
 import './styles.css';
+import './brand-onboarding.css';
 import './operator-profile-insights.css';
 
 initOnboardingPersistence();
