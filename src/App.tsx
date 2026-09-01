@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Building2, Check, Circle, Save, Sparkles, Store } from 'lucide-react';
+import BrandOnboardingStep from './BrandOnboarding';
 
 type Flow = 'brand' | 'operator';
 
@@ -11,12 +12,16 @@ type Step = {
 };
 
 const brandSteps: Step[] = [
-  { id: 'team', title: 'Your team', eyebrow: 'Step 1', intro: 'Tell us who should be involved as we build your Brand Profile.' },
-  { id: 'brand', title: 'About your brand', eyebrow: 'Step 2', intro: 'Give us a clear picture of the brand so we can identify genuinely aligned properties and guests.' },
-  { id: 'product', title: 'The product or range', eyebrow: 'Step 3', intro: 'Tell us what you would like IRL to consider first.' },
-  { id: 'audience', title: 'Who you want to reach', eyebrow: 'Step 4', intro: 'Help us understand the people for whom this product is most relevant.' },
-  { id: 'opportunity', title: 'The opportunity', eyebrow: 'Step 5', intro: 'Tell us what should change, what could get in the way, and what success should look like.' },
-  { id: 'review', title: 'Review and submit', eyebrow: 'Step 6', intro: 'Check the profile before sending it to IRL.' },
+  { id: 'team', title: 'Your team', eyebrow: 'Step 1', intro: 'Tell us who should be involved as we build your Brand Profile. This helps IRL keep the right people informed and create the most accurate property matches for your brand.' },
+  { id: 'brand', title: 'About your brand', eyebrow: 'Step 2', intro: 'Give us a clear picture of your brand so we can identify properties, guests and environments that genuinely align with it.' },
+  { id: 'product', title: 'The product or range', eyebrow: 'Step 3', intro: 'Tell us which product or range you would like IRL to consider first. This gives us a clear starting point for matching.' },
+  { id: 'audience', title: 'Who you want to reach', eyebrow: 'Step 4', intro: 'Help us understand the people for whom this product is most relevant. Complete the core questions, then add more detail only where it improves the match.' },
+  { id: 'need', title: 'Customer need and barrier', eyebrow: 'Step 5', intro: 'Understanding the need and the barrier helps IRL design a more relevant real-life experience.' },
+  { id: 'value', title: 'How IRL should add value', eyebrow: 'Step 6', intro: 'Give us a light view of what is already working and the main gap a real-life product experience should help address.' },
+  { id: 'operations', title: 'Making it work', eyebrow: 'Step 7', intro: 'Tell us only about the practical requirements that could affect whether the product can operate successfully in a hospitality property.' },
+  { id: 'success', title: 'What success looks like', eyebrow: 'Step 8', intro: 'Keep this focused on the evidence that would make the partnership useful, not a long list of vanity metrics.' },
+  { id: 'requirements', title: 'Brand requirements', eyebrow: 'Step 9', intro: 'Share only the requirements IRL must know to protect the brand, the guest and the property.' },
+  { id: 'review', title: 'Review and submit', eyebrow: 'Step 10', intro: 'Review your Brand Profile, make any final edits and confirm that it is accurate before sending it to IRL.' },
 ];
 
 const operatorSteps: Step[] = [
@@ -28,9 +33,6 @@ const operatorSteps: Step[] = [
   { id: 'data', title: 'Data and systems', eyebrow: 'Step 6', intro: 'Tell us what booking and stay data is available, even if you need help finding it.' },
   { id: 'review', title: 'Review and submit', eyebrow: 'Step 7', intro: 'Check the profile before sending it to IRL.' },
 ];
-
-const qualities = ['Performance', 'Quality', 'Design', 'Convenience', 'Innovation', 'Wellness', 'Sustainability', 'Local provenance', 'Craft', 'Community'];
-const zones = ['Sleep & Recovery', 'Bath & Body', 'Food & Drink', 'Living & Social', 'Work & Focus', 'Arrival & Welcome', 'Outdoor & Movement'];
 
 function App() {
   const [flow, setFlow] = useState<Flow | null>(() => (localStorage.getItem('irl-flow') as Flow | null));
@@ -73,12 +75,12 @@ function App() {
           <h1>Build a profile that makes better real-life matches possible.</h1>
           <p className="lede">Choose the journey that applies to you. Your progress is saved automatically, so you can return at any time.</p>
           <div className="flow-grid">
-            <button className="flow-card" onClick={() => setFlow('brand')}>
+            <button className="flow-card" onClick={() => { setFlow('brand'); setStepIndex(0); }}>
               <Store size={28} />
               <span><strong>I represent a brand</strong><small>Tell IRL about your brand, products, audience and objectives.</small></span>
               <ArrowRight size={20} />
             </button>
-            <button className="flow-card" onClick={() => setFlow('operator')}>
+            <button className="flow-card" onClick={() => { setFlow('operator'); setStepIndex(0); }}>
               <Building2 size={28} />
               <span><strong>I operate a property</strong><small>Tell IRL about your guests, spaces, systems and operational readiness.</small></span>
               <ArrowRight size={20} />
@@ -121,7 +123,7 @@ function App() {
 
           <section className="question-card">
             {flow === 'brand' ? (
-              <BrandStep step={current.id} form={form} update={update} toggle={toggle} />
+              <BrandOnboardingStep step={current.id} form={form} update={update} toggle={toggle} />
             ) : (
               <OperatorStep step={current.id} form={form} update={update} toggle={toggle} />
             )}
@@ -144,22 +146,13 @@ type StepProps = {
   toggle: (key: string, value: string, max?: number) => void;
 };
 
-function Field({ label, name, form, update, type = 'text', placeholder = '', optional = false }: { label: string; name: string; form: StepProps['form']; update: StepProps['update']; type?: string; placeholder?: string; optional?: boolean }) {
-  return <label className="field"><span>{label} {optional && <em>Optional</em>}</span><input type={type} value={(form[name] as string) || ''} placeholder={placeholder} onChange={(event) => update(name, event.target.value)} /></label>;
+function Field({ label, name, form, update, type = 'text', optional = false }: { label: string; name: string; form: StepProps['form']; update: StepProps['update']; type?: string; optional?: boolean }) {
+  return <label className="field"><span>{label} {optional && <em>Optional</em>}</span><input type={type} value={(form[name] as string) || ''} onChange={(event) => update(name, event.target.value)} /></label>;
 }
 
 function ChoiceGrid({ label, name, options, form, toggle, max }: { label: string; name: string; options: string[]; form: StepProps['form']; toggle: StepProps['toggle']; max?: number }) {
   const selected = Array.isArray(form[name]) ? form[name] as string[] : [];
   return <fieldset className="field"><legend>{label}{max && <small>{selected.length} of {max} selected</small>}</legend><div className="choice-grid">{options.map((option) => <button type="button" key={option} className={selected.includes(option) ? 'selected' : ''} onClick={() => toggle(name, option, max)}>{selected.includes(option) && <Check size={15} />}{option}</button>)}</div></fieldset>;
-}
-
-function BrandStep({ step, form, update, toggle }: StepProps) {
-  if (step === 'team') return <><div className="field-row"><Field label="First name" name="firstName" form={form} update={update} /><Field label="Last name" name="lastName" form={form} update={update} /></div><Field label="Work email" name="email" type="email" form={form} update={update} /><Field label="Job title" name="jobTitle" form={form} update={update} /><button className="text-action">+ Add another contact</button></>;
-  if (step === 'brand') return <><Field label="Brand name" name="brandName" form={form} update={update} /><Field label="Brand website" name="brandWebsite" type="url" form={form} update={update} /><div className="field-row"><Field label="Country" name="brandCountry" form={form} update={update} /><Field label="City" name="brandCity" form={form} update={update} optional /></div><Field label="Describe the brand in one sentence" name="brandDescription" form={form} update={update} placeholder="How would you introduce the brand to someone new?" /><ChoiceGrid label="Which qualities are most central to the brand?" name="qualities" options={qualities} form={form} toggle={toggle} max={5} /></>;
-  if (step === 'product') return <><ChoiceGrid label="What would you like IRL to consider?" name="productScope" options={['One specific product', 'A product range', 'Several products', 'Help us decide']} form={form} toggle={toggle} max={1} /><Field label="Product or range name" name="productName" form={form} update={update} /><div className="field-row"><Field label="Minimum retail price" name="priceMin" type="number" form={form} update={update} /><Field label="Maximum retail price" name="priceMax" type="number" form={form} update={update} optional /></div><Field label="Variants to consider" name="variants" form={form} update={update} optional /><button className="text-action">+ Add another product or range</button></>;
-  if (step === 'audience') return <><Field label="Describe the priority audience" name="audienceDescription" form={form} update={update} placeholder="Who would you most like IRL to reach?" /><ChoiceGrid label="Where is this audience based?" name="audienceGeography" options={['Primarily South African', 'Primarily international', 'Both local and international', 'Specific countries or regions', 'Geography is not a priority']} form={form} toggle={toggle} max={1} /><ChoiceGrid label="What matters most when they choose this product?" name="decisionFactors" options={['Price', 'Quality', 'Performance', 'Design', 'Ingredients or materials', 'Convenience', 'Trust', 'Sustainability', 'Local provenance', 'Availability']} form={form} toggle={toggle} max={3} /><details><summary>Add optional audience detail</summary><Field label="Anything else IRL should understand?" name="audienceNotes" form={form} update={update} optional /></details></>;
-  if (step === 'opportunity') return <><Field label="What need or outcome is the customer looking for?" name="customerNeed" form={form} update={update} /><ChoiceGrid label="Which Experience Zone does this need most relate to?" name="experienceZone" options={zones} form={form} toggle={toggle} max={1} /><ChoiceGrid label="What is the main gap IRL should help address?" name="irlOpportunity" options={['Discover the brand', 'Try the product', 'Understand why it is different', 'Build familiarity through repeat exposure', 'Build confidence or trust', 'Generate deeper insight', 'Encourage purchase or action']} form={form} toggle={toggle} max={1} /><ChoiceGrid label="Which reporting signals matter most?" name="successSignals" options={['Guests reached', 'Guest nights or exposure', 'Product use', 'Repeat use', 'Guest feedback', 'QR or page engagement', 'Redemptions or purchases', 'Operational fulfilment']} form={form} toggle={toggle} max={3} /></>;
-  return <Review form={form} />;
 }
 
 function OperatorStep({ step, form, update, toggle }: StepProps) {
