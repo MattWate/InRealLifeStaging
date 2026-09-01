@@ -1,4 +1,5 @@
 type Draft = Record<string, string | string[]>;
+type Flow = 'operator' | 'brand';
 
 type SaveResponse = {
   session_id?: string;
@@ -11,6 +12,7 @@ let timer: number | undefined;
 let saving = false;
 let queuedDraft: Draft | null = null;
 let queuedSubmit = false;
+let queuedFlow: Flow | null = null;
 
 export function initOnboardingPersistence() {
   const storagePrototype = Object.getPrototypeOf(window.localStorage) as Storage;
@@ -21,49 +23,53 @@ export function initOnboardingPersistence() {
     if (this !== window.localStorage || key !== 'irl-draft') return;
 
     try {
-      const flow = window.localStorage.getItem('irl-flow');
-      if (flow !== 'operator') return;
-      queueSave(JSON.parse(value) as Draft, false);
+      const flow = currentFlow();
+      if (!flow) return;
+      queueSave(JSON.parse(value) as Draft, flow, false);
     } catch (error) {
-      console.error('Unable to queue operator onboarding save', error);
+      console.error('Unable to queue onboarding save', error);
     }
   };
 
   document.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement | null)?.closest('button');
-    if (!button || window.localStorage.getItem('irl-flow') !== 'operator') return;
+    const flow = currentFlow();
+    if (!button || !flow) return;
     if (!button.textContent?.toLowerCase().includes('save profile')) return;
 
     try {
       const raw = window.localStorage.getItem('irl-draft') || '{}';
-      queueSave(JSON.parse(raw) as Draft, true, 0);
+      queueSave(JSON.parse(raw) as Draft, flow, true, 0);
     } catch (error) {
-      console.error('Unable to submit operator onboarding profile', error);
+      console.error('Unable to submit onboarding profile', error);
     }
   });
 
   window.addEventListener('beforeunload', () => {
-    if (!queuedDraft) return;
-    const payload = buildPayload(queuedDraft, queuedSubmit);
+    if (!queuedDraft || !queuedFlow) return;
+    const payload = buildPayload(queuedDraft, queuedFlow, queuedSubmit);
     navigator.sendBeacon('/.netlify/functions/onboarding', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
   });
 }
 
-function queueSave(draft: Draft, submit: boolean, delay = 650) {
+function queueSave(draft: Draft, flow: Flow, submit: boolean, delay = 650) {
   queuedDraft = draft;
+  queuedFlow = flow;
   queuedSubmit = queuedSubmit || submit;
   window.clearTimeout(timer);
   timer = window.setTimeout(flush, delay);
 }
 
 async function flush() {
-  if (saving || !queuedDraft) return;
+  if (saving || !queuedDraft || !queuedFlow) return;
   const draft = queuedDraft;
+  const flow = queuedFlow;
   const submit = queuedSubmit;
   queuedDraft = null;
+  queuedFlow = null;
   queuedSubmit = false;
 
-  if (!String(draft.operatorName || '').trim()) return;
+  if (!hasMinimumIdentity(draft, flow)) return;
 
   saving = true;
   setSaveLabel(submit ? 'Submitting profile…' : 'Saving online…');
@@ -71,17 +77,21 @@ async function flush() {
     const response = await fetch('/.netlify/functions/onboarding', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(buildPayload(draft, submit)),
+      body: JSON.stringify(buildPayload(draft, flow, submit)),
     });
     const text = await response.text();
     let data: SaveResponse = {};
     try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text }; }
     if (!response.ok) throw new Error(data.error || `Save failed with status ${response.status}`);
 
-    if (data.session_id) originalSetItem('irl-onboarding-session', data.session_id);
+    if (data.session_id) {
+      originalSetItem(sessionStorageKey(flow), data.session_id);
+      // Backwards compatibility for operator sessions created before flow-specific keys.
+      if (flow === 'operator') originalSetItem('irl-onboarding-session', data.session_id);
+    }
     setSaveLabel(submit ? 'Profile submitted to IRL' : `Saved online at ${formatTime(data.saved_at)}`);
   } catch (error) {
-    console.error('Operator onboarding online save failed', error);
+    console.error(`${flow} onboarding online save failed`, error);
     setSaveLabel(error instanceof Error ? `Saved locally — ${error.message}` : 'Saved locally — online save failed');
   } finally {
     saving = false;
@@ -89,21 +99,42 @@ async function flush() {
   }
 }
 
-function buildPayload(form: Draft, submit: boolean) {
+function buildPayload(form: Draft, flow: Flow, submit: boolean) {
   return {
-    session_id: window.localStorage.getItem('irl-onboarding-session'),
-    flow: 'operator',
-    current_step: currentStep(),
+    session_id: getSessionId(flow),
+    flow,
+    current_step: currentStep(flow),
     completion_percentage: completionPercentage(),
+    schema_version: flow === 'brand' ? 'brand-onboarding-v01' : 'operator-onboarding-v01',
     submit,
     form,
   };
 }
 
-function currentStep() {
+function currentFlow(): Flow | null {
+  const value = window.localStorage.getItem('irl-flow');
+  return value === 'brand' || value === 'operator' ? value : null;
+}
+
+function hasMinimumIdentity(draft: Draft, flow: Flow) {
+  return flow === 'brand'
+    ? Boolean(String(draft.brandName || '').trim())
+    : Boolean(String(draft.operatorName || '').trim());
+}
+
+function sessionStorageKey(flow: Flow) {
+  return `irl-onboarding-session-${flow}`;
+}
+
+function getSessionId(flow: Flow) {
+  return window.localStorage.getItem(sessionStorageKey(flow))
+    || (flow === 'operator' ? window.localStorage.getItem('irl-onboarding-session') : null);
+}
+
+function currentStep(flow: Flow) {
   const active = document.querySelector<HTMLButtonElement>('.step-list button.active');
   const label = active?.textContent?.replace(/^\s*\d+\s*/, '').trim().toLowerCase() || '';
-  const map: Record<string, string> = {
+  const operatorMap: Record<string, string> = {
     'your organisation': 'organisation',
     'your property': 'property',
     'your guests': 'guests',
@@ -112,7 +143,19 @@ function currentStep() {
     'data and systems': 'data',
     'review and submit': 'review',
   };
-  return map[label] || null;
+  const brandMap: Record<string, string> = {
+    'your team': 'team',
+    'about your brand': 'brand',
+    'the product or range': 'product',
+    'who you want to reach': 'audience',
+    'customer need and barrier': 'need',
+    'how irl should add value': 'value',
+    'making it work': 'operations',
+    'what success looks like': 'success',
+    'brand requirements': 'requirements',
+    'review and submit': 'review',
+  };
+  return (flow === 'brand' ? brandMap : operatorMap)[label] || null;
 }
 
 function completionPercentage() {
