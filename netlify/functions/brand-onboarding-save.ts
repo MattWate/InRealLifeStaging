@@ -37,12 +37,13 @@ export async function saveBrandOnboarding(sql: any, body: BrandPayload) {
 
   if (sessionId) {
     const rows = await sql`
-      select id, organisation_id
+      select id, organisation_id, status, submitted_at
       from public.onboarding_sessions
       where id = ${sessionId}::uuid and onboarding_type = 'brand'
       limit 1
     `;
     if (!rows.length) throw new Error('The saved brand onboarding session could not be found. Clear the local draft and start again.');
+    if (rows[0].status === 'submitted') return { ok: true, session_id: sessionId, status: 'submitted', saved_at: rows[0].submitted_at };
     organisationId = rows[0].organisation_id;
   } else {
     const organisationSlug = `${slugify(brandName)}-${Date.now().toString(36)}`;
@@ -63,7 +64,7 @@ export async function saveBrandOnboarding(sql: any, body: BrandPayload) {
         organisation_id, onboarding_type, current_step, status, completion_percentage, schema_version
       ) values (
         ${organisationId}::uuid, 'brand', ${nullableText(body.current_step)},
-        ${body.submit ? 'submitted' : 'in_progress'}, ${percentage(body.completion_percentage)},
+        'in_progress', ${percentage(body.completion_percentage)},
         ${body.schema_version || 'brand-onboarding-v01'}
       ) returning id
     `;
@@ -132,18 +133,22 @@ export async function saveBrandOnboarding(sql: any, body: BrandPayload) {
   await upsertSecondaryAudience(sql, organisationId, sessionId, productId, form);
   await saveAnswers(sql, sessionId, form, submitted);
 
-  await sql`
+  const finalUpdate = sql`
     update public.onboarding_sessions set
       current_step = ${nullableText(body.current_step)},
-      completion_percentage = ${percentage(body.completion_percentage)},
-      status = ${submitted ? 'submitted' : 'in_progress'},
+      completion_percentage = case when status = 'submitted' or ${submitted} then 100 else ${percentage(body.completion_percentage)} end,
+      status = case when status = 'submitted' or ${submitted} then 'submitted' else 'in_progress' end,
       schema_version = ${body.schema_version || 'brand-onboarding-v01'},
-      submitted_at = ${submitted ? new Date().toISOString() : null}::timestamptz,
+      submitted_at = coalesce(submitted_at, ${submitted ? new Date().toISOString() : null}::timestamptz),
       updated_at = now()
     where id = ${sessionId}::uuid
   `;
-
-  if (submitted) await audit(sql, sessionId, organisationId, 'submitted', body.schema_version, { completion_percentage: percentage(body.completion_percentage) });
+  if (submitted) await sql.transaction([
+    finalUpdate,
+    sql`insert into public.irl_submission_snapshots (session_id, answers) values (${sessionId}::uuid, ${JSON.stringify(form)}::jsonb) on conflict (session_id) do nothing`,
+    sql`insert into public.onboarding_audit_log (onboarding_session_id,organisation_id,event_type,schema_version,details) values (${sessionId}::uuid,${organisationId}::uuid,'submitted',${body.schema_version || 'brand-onboarding-v01'},'{}'::jsonb)`,
+  ]);
+  else await finalUpdate;
 
   return {
     ok: true,
@@ -232,7 +237,7 @@ async function saveAnswers(sql: any, sessionId: string, form: Record<string, For
   const status = submitted ? 'submitted' : 'draft';
   for (const [fieldKey, answer] of Object.entries(form)) {
     const section = SECTION_BY_FIELD[fieldKey];
-    if (!section || isBlank(answer)) continue;
+    if (!section) continue;
     await sql`
       insert into public.onboarding_answers (onboarding_session_id, section_key, field_key, answer_json, status)
       values (${sessionId}::uuid, ${section}, ${fieldKey}, ${JSON.stringify(answer)}::jsonb, ${status})

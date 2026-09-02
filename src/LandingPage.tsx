@@ -1,5 +1,6 @@
 import { ArrowRight, BarChart3, Building2, Check, MapPin, Store } from 'lucide-react';
 import './landing-page.css';
+import { useAuth } from './admin/Auth';
 
 const zones = [
   'Sleep & Recovery',
@@ -12,6 +13,7 @@ const zones = [
 ];
 
 function LandingPage() {
+  const { user, loading } = useAuth();
   return (
     <div className="landing-page">
       <header className="landing-nav">
@@ -29,7 +31,7 @@ function LandingPage() {
           </nav>
 
           <div className="landing-nav__actions">
-            <a className="landing-sign-in" href="/login">Sign in</a>
+            <a className="landing-sign-in" href={user ? '/admin' : '/login'}>{loading ? 'Account' : user ? 'Dashboard' : 'Sign in'}</a>
             <a className="irl-button irl-button--primary landing-join" href="/onboarding">
               Join IRL <ArrowRight size={16} />
             </a>

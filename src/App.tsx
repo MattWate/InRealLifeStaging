@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Building2, Check, Circle, Save, Sparkles, Store } from 'lucide-react';
 import BrandOnboardingStep from './BrandOnboarding';
+import { initialFlow, readDraft, saveOnboarding } from './onboarding-persistence';
 
 type Flow = 'brand' | 'operator';
 
@@ -35,27 +36,47 @@ const operatorSteps: Step[] = [
 ];
 
 function App() {
-  const [flow, setFlow] = useState<Flow | null>(() => (localStorage.getItem('irl-flow') as Flow | null));
+  const [flow, setFlow] = useState<Flow | null>(initialFlow);
   const [stepIndex, setStepIndex] = useState(0);
   const [savedAt, setSavedAt] = useState<string>('');
-  const [form, setForm] = useState<Record<string, string | string[]>>(() => {
-    const saved = localStorage.getItem('irl-draft');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [form, setForm] = useState<Record<string, string | string[]>>(() => readDraft(initialFlow()));
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const steps = flow === 'operator' ? operatorSteps : brandSteps;
   const progress = Math.round(((stepIndex + 1) / steps.length) * 100);
   const current = steps[stepIndex];
 
   useEffect(() => {
-    if (!flow) return;
+    if (!flow || submitted || submitting) return;
+    localStorage.setItem('irl-flow', flow);
+    localStorage.setItem(`irl-draft-${flow}`, JSON.stringify(form));
+    let active = true;
     const timer = window.setTimeout(() => {
-      localStorage.setItem('irl-draft', JSON.stringify(form));
-      localStorage.setItem('irl-flow', flow);
-      setSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    }, 450);
-    return () => window.clearTimeout(timer);
-  }, [form, flow]);
+      if (!String(form[flow === 'brand' ? 'brandName' : 'operatorName'] || '').trim()) { setSavedAt('Saved on this device'); return; }
+      setSavedAt('Saving online…');
+      void saveOnboarding(form, flow, current.id, progress).then(result => {
+        if (!active) return;
+        setSaveError('');
+        if (result.status === 'submitted') setSubmitted(true);
+        else setSavedAt(`Saved online at ${new Date(result.saved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      }).catch(error => { if (active) { setSavedAt('Saved on this device'); setSaveError(error.message); } });
+    }, 650);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [form, flow, submitted, submitting, current.id, progress]);
+
+  function chooseFlow(next: Flow) { setForm(readDraft(next)); setFlow(next); setStepIndex(0); setSubmitted(false); setSaveError(''); setSavedAt(''); }
+  async function submitProfile() {
+    if (!flow || submitting) return;
+    setSubmitting(true); setSaveError('');
+    try {
+      const result = await saveOnboarding(form, flow, 'review', 100, true);
+      if (result.status !== 'submitted') throw new Error('The profile was saved but not submitted. Please try again.');
+      setSubmitted(true);
+    } catch (error) { setSaveError((error as Error).message); }
+    finally { setSubmitting(false); }
+  }
 
   const completed = useMemo(() => new Set(steps.slice(0, stepIndex).map((step) => step.id)), [steps, stepIndex]);
 
@@ -75,12 +96,12 @@ function App() {
           <h1>Build a profile that makes better real-life matches possible.</h1>
           <p className="lede">Choose the journey that applies to you. Your progress is saved automatically, so you can return at any time.</p>
           <div className="flow-grid">
-            <button className="flow-card" onClick={() => { setFlow('brand'); setStepIndex(0); }}>
+            <button className="flow-card" onClick={() => chooseFlow('brand')}>
               <Store size={28} />
               <span><strong>I represent a brand</strong><small>Tell IRL about your brand, products, audience and objectives.</small></span>
               <ArrowRight size={20} />
             </button>
-            <button className="flow-card" onClick={() => { setFlow('operator'); setStepIndex(0); }}>
+            <button className="flow-card" onClick={() => chooseFlow('operator')}>
               <Building2 size={28} />
               <span><strong>I operate a property</strong><small>Tell IRL about your guests, spaces, systems and operational readiness.</small></span>
               <ArrowRight size={20} />
@@ -91,6 +112,8 @@ function App() {
     );
   }
 
+  if (submitted) return <main className="welcome-shell"><section className="welcome-card"><div className="brand-mark">IRL</div><h1>Profile submitted</h1><p>Your {flow} profile has been saved and is ready for the IRL team to review. Contact IRL if any details need correcting.</p><a className="irl-button irl-button--primary" href="/">Back to IRL</a></section></main>;
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -99,14 +122,14 @@ function App() {
           <p className="profile-label">{flow === 'brand' ? 'Brand profile' : 'Operator profile'}</p>
           <nav className="step-list" aria-label="Onboarding progress">
             {steps.map((step, index) => (
-              <button key={step.id} className={index === stepIndex ? 'active' : ''} onClick={() => setStepIndex(index)}>
+              <button key={step.id} disabled={submitting} className={index === stepIndex ? 'active' : ''} onClick={() => setStepIndex(index)}>
                 <span className="step-icon">{completed.has(step.id) ? <Check size={14} /> : index === stepIndex ? <Circle size={12} fill="currentColor" /> : index + 1}</span>
                 <span>{step.title}</span>
               </button>
             ))}
           </nav>
         </div>
-        <button className="switch-link" onClick={() => { setFlow(null); setStepIndex(0); }}>Switch profile type</button>
+        <button className="switch-link" disabled={submitting} onClick={() => { setFlow(null); setStepIndex(0); }}>Switch profile type</button>
       </aside>
 
       <main className="form-shell">
@@ -116,22 +139,23 @@ function App() {
         </header>
         <div className="progress-wrap"><div className="progress-bar" style={{ width: `${progress}%` }} /></div>
         <div className="form-content">
-          <div className="save-state"><Save size={14} /> {savedAt ? `Saved at ${savedAt}` : 'Autosave on'}</div>
+          <div className="save-state" role="status"><Save size={14} /> {submitting ? 'Submitting profile…' : savedAt || 'Autosave on'}</div>
+          {saveError && <p role="alert">{saveError} Your draft is still saved on this device.</p>}
           <p className="eyebrow">{current.eyebrow}</p>
           <h1>{current.title}</h1>
           <p className="intro">{current.intro}</p>
 
-          <section className="question-card">
+          <fieldset className="question-card onboarding-fields" disabled={submitting}>
             {flow === 'brand' ? (
               <BrandOnboardingStep step={current.id} form={form} update={update} toggle={toggle} />
             ) : (
               <OperatorStep step={current.id} form={form} update={update} toggle={toggle} />
             )}
-          </section>
+          </fieldset>
 
           <footer className="form-actions">
-            <button className="button secondary" disabled={stepIndex === 0} onClick={() => setStepIndex((index) => Math.max(0, index - 1))}><ArrowLeft size={18} /> Back</button>
-            <button className="button primary" onClick={() => setStepIndex((index) => Math.min(steps.length - 1, index + 1))}>{stepIndex === steps.length - 1 ? 'Save profile' : 'Save and continue'} <ArrowRight size={18} /></button>
+            <button className="button secondary" disabled={submitting || stepIndex === 0} onClick={() => setStepIndex((index) => Math.max(0, index - 1))}><ArrowLeft size={18} /> Back</button>
+            <button className="button primary" disabled={submitting} onClick={() => { if (stepIndex === steps.length - 1) void submitProfile(); else setStepIndex(index => index + 1); }}>{submitting ? 'Submitting…' : stepIndex === steps.length - 1 ? 'Submit profile' : 'Save and continue'} <ArrowRight size={18} /></button>
           </footer>
         </div>
       </main>

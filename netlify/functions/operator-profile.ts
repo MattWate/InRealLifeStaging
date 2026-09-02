@@ -1,7 +1,8 @@
+import { adminOnly } from '../lib/admin-auth';
 import type { Handler } from '@netlify/functions';
 import { neon } from '@neondatabase/serverless';
 
-export const handler: Handler = async (event) => {
+export const handler: Handler = adminOnly(async (event) => {
   const databaseUrl = process.env.DATABASE_URL;
   const slug = event.queryStringParameters?.slug || 'curiocity-green-point';
   if (!databaseUrl) return json(500, { error: 'DATABASE_URL is not configured.' });
@@ -48,8 +49,8 @@ export const handler: Handler = async (event) => {
     console.error('Operator profile query failed', error);
     return json(500, { error: 'Unable to load the operator profile.' });
   }
-};
+});
 
 function json(statusCode: number, body: unknown) {
-  return { statusCode, headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=60, stale-while-revalidate=300' }, body: JSON.stringify(body) };
+  return { statusCode, headers: { 'content-type': 'application/json', 'cache-control': 'no-store, private' }, body: JSON.stringify(body) };
 }

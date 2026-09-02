@@ -1,10 +1,11 @@
+import { adminOnly } from '../lib/admin-auth';
 import type { Handler } from '@netlify/functions';
 import { neon } from '@neondatabase/serverless';
 
 const allowedStatuses = ['researching','ready_for_review','under_review','approach','hold','rejected','contacted','converted_to_onboarding','archived'];
 type Payload = Record<string, any>;
 
-export const handler: Handler = async (event) => {
+export const handler: Handler = adminOnly(async (event) => {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) return reply(500, { error: 'DATABASE_URL is not configured.' });
   const sql = neon(databaseUrl);
@@ -22,7 +23,7 @@ export const handler: Handler = async (event) => {
     console.error('Screening API failed', error);
     return reply(500, { error: readableError(error) });
   }
-};
+});
 
 async function getList(sql: any) {
   const rows = await sql`
