@@ -94,3 +94,49 @@ test('later operator autosaves do not modify a submitted form', async () => {
   const result = await operator(event('POST', { session_id: id, flow: 'operator', form: { operatorName: 'Changed' }, submit: false }), {});
   assert.equal(JSON.parse(result.body).status, 'submitted'); assert.equal(calls.length, 1);
 });
+test('older submissions fall back to their recorded answers', async () => {
+  configure(query => query.includes('join public.irl_admin_users') ? [{ id, role: 'admin' }] : query.includes('from public.onboarding_answers') ? [{ field_key: 'brandName', section_key: 'brand', answer_json: 'Legacy brand' }] : [{ id, type: 'brand', name: 'Legacy brand', snapshot: null }]);
+  const request = signed(); request.queryStringParameters = { id };
+  const result = await submissions(request, {}); assert.equal(JSON.parse(result.body).answers[0].answer_json, 'Legacy brand');
+});
+test('operator submission marks completion and snapshots final answers in one transaction', async () => {
+  configure(query => query.includes('from public.onboarding_sessions') ? [{ id, organisation_id: id, property_id: id, status: 'in_progress' }] : []);
+  const form = { operatorName: 'Example', operatorFirstName: 'A', operatorLastName: 'B', operatorEmail: 'a@example.com', propertyName: 'Property', spaces: [] };
+  const result = await operator(event('POST', { session_id: id, flow: 'operator', form, submit: true }), {});
+  assert.equal(result.statusCode, 200); assert.equal(JSON.parse(result.body).status, 'submitted');
+  const tx = calls.slice(calls.findIndex(c => c.query === 'BEGIN'));
+  assert(tx[1].query.startsWith('update public.onboarding_sessions'));
+  assert(tx[2].query.startsWith('insert into public.irl_submission_snapshots'));
+  assert.deepEqual(JSON.parse(tx[2].values[1]), form); assert.equal(tx.at(-1).query, 'COMMIT');
+});
+test('brand submission marks completion and snapshots final answers in one transaction', async () => {
+  configure(query => query.includes('from public.onboarding_sessions') ? [{ id, organisation_id: id, status: 'in_progress' }] : query.includes('returning id') ? [{ id }] : []);
+  const form = { brandName: 'Example', firstName: 'A', lastName: 'B', email: 'a@example.com', productName: 'Product', profileConfirmed: 'yes' };
+  const result = await saveBrandOnboarding(neon(), { session_id: id, flow: 'brand', form, submit: true });
+  assert.equal(result.status, 'submitted');
+  const tx = calls.slice(calls.findIndex(c => c.query === 'BEGIN'));
+  assert(tx[1].query.startsWith('update public.onboarding_sessions'));
+  assert(tx[2].query.startsWith('insert into public.irl_submission_snapshots'));
+  assert.deepEqual(JSON.parse(tx[2].values[1]), form); assert.equal(tx.at(-1).query, 'COMMIT');
+});
+test('failed finalisation reports an error rather than submission success', async () => {
+  configure(query => { if (query.includes('from public.onboarding_sessions')) return [{ id, organisation_id: id, property_id: id, status: 'in_progress' }]; if (query.includes('irl_submission_snapshots')) throw new Error('test storage failure'); return []; });
+  const previous = console.error; console.error = () => {};
+  try {
+    const result = await operator(event('POST', { session_id: id, flow: 'operator', submit: true, form: { operatorName: 'Example', operatorFirstName: 'A', operatorLastName: 'B', operatorEmail: 'a@example.com', propertyName: 'Property' } }), {});
+    assert.equal(result.statusCode, 500); assert(!result.body.includes('test storage failure')); assert(!calls.some(c => c.query === 'COMMIT'));
+  } finally { console.error = previous; }
+});
+test('onboarding requests serialize autosave and submit using the returned session ID', async () => {
+  const { saveOnboarding } = await import('../src/onboarding-persistence.ts');
+  const previousFetch = globalThis.fetch; const previousStorage = globalThis.localStorage;
+  const storage = new Map(); const requests = []; let release;
+  globalThis.localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) };
+  globalThis.fetch = async (url, init) => { requests.push(JSON.parse(init.body)); if (requests.length === 1) await new Promise(resolve => { release = resolve; }); return { ok: true, json: async () => ({ session_id: id, status: requests.length === 1 ? 'in_progress' : 'submitted' }) }; };
+  try {
+    const draft = saveOnboarding({ brandName: 'Example' }, 'brand', 'brand', 20);
+    const submitted = saveOnboarding({ brandName: 'Final' }, 'brand', 'review', 100, true);
+    await new Promise(resolve => setImmediate(resolve)); assert.equal(requests.length, 1); release();
+    await draft; await submitted; assert.equal(requests[1].session_id, id); assert.equal(requests[1].form.brandName, 'Final'); assert.equal(requests[1].submit, true);
+  } finally { globalThis.fetch = previousFetch; globalThis.localStorage = previousStorage; }
+});

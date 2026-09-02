@@ -152,7 +152,7 @@ async function saveOperatorOnboarding(sql: any, body: Payload, form: Record<stri
       property_id = ${propertyId}::uuid,
       current_step = ${nullable(body.current_step)},
       completion_percentage = case when status = 'submitted' or ${body.submit === true} then 100 else ${percentage(body.completion_percentage)} end,
-      status = case when status = 'submitted' or ${body.submit === true} then 'submitted' else 'in_progress' end,
+      status = case when status = 'submitted' or ${body.submit === true} then 'submitted' else status end,
       submitted_at = coalesce(submitted_at, ${body.submit ? new Date().toISOString() : null}::timestamptz),
       updated_at = now()
     where id = ${sessionId}::uuid

@@ -51,7 +51,8 @@ export function adminOnly(handler: Handler): Handler {
         return reply(403, { error: 'Request origin is not allowed.' });
       }
       if (!await currentAdmin(event)) return reply(401, { error: 'Please sign in with an IRL administrator account.' });
-      return await handler(event, context);
+      const response = await handler(event, context);
+      return response || reply(500, { error: 'The admin request did not return a response.' });
     } catch (error) {
       console.error('Admin request failed', error);
       return reply(503, { error: 'The admin service is temporarily unavailable. Please try again.' });

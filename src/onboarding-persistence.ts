@@ -25,6 +25,11 @@ export function initialFlow(): Flow | null {
 }
 export function readDraft(flow: Flow | null): Draft {
   if (!flow) return {};
+  const legacyFlow = localStorage.getItem('irl-flow');
+  const legacyDraft = localStorage.getItem('irl-draft');
+  if ((legacyFlow === 'brand' || legacyFlow === 'operator') && legacyDraft && !localStorage.getItem(`irl-draft-${legacyFlow}`)) {
+    localStorage.setItem(`irl-draft-${legacyFlow}`, legacyDraft);
+  }
   const value = localStorage.getItem(`irl-draft-${flow}`)
     || (localStorage.getItem('irl-flow') === flow ? localStorage.getItem('irl-draft') : null);
   try { const parsed = JSON.parse(value || '{}'); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}; }

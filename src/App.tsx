@@ -66,7 +66,7 @@ function App() {
     return () => { active = false; window.clearTimeout(timer); };
   }, [form, flow, submitted, submitting, current.id, progress]);
 
-  function chooseFlow(next: Flow) { setForm(readDraft(next)); setFlow(next); setStepIndex(0); setSubmitted(false); setSaveError(''); setSavedAt(''); }
+  function chooseFlow(next: Flow) { window.history.replaceState(null, '', `/onboarding?flow=${next}`); setForm(readDraft(next)); setFlow(next); setStepIndex(0); setSubmitted(false); setSaveError(''); setSavedAt(''); }
   async function submitProfile() {
     if (!flow || submitting) return;
     setSubmitting(true); setSaveError('');

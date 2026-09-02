@@ -137,7 +137,7 @@ export async function saveBrandOnboarding(sql: any, body: BrandPayload) {
     update public.onboarding_sessions set
       current_step = ${nullableText(body.current_step)},
       completion_percentage = case when status = 'submitted' or ${submitted} then 100 else ${percentage(body.completion_percentage)} end,
-      status = case when status = 'submitted' or ${submitted} then 'submitted' else 'in_progress' end,
+      status = case when status = 'submitted' or ${submitted} then 'submitted' else status end,
       schema_version = ${body.schema_version || 'brand-onboarding-v01'},
       submitted_at = coalesce(submitted_at, ${submitted ? new Date().toISOString() : null}::timestamptz),
       updated_at = now()
