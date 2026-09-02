@@ -39,7 +39,19 @@ export const handler: Handler = async event => {
     }
     const users = await sql`select id, email, name, password_hash, role, active from public.irl_admin_users where email = ${email} limit 1`;
     const user = users[0];
-    const valid = await verifyPassword(body.password, user?.password_hash || null);
+    // Neon SQL Editor accounts use pgcrypto's bcrypt hashes. Existing CLI-created
+    // scrypt accounts remain valid. Accept bounded costs to avoid unbounded KDF work.
+    const bcrypt = /^\$2a\$1[0-4]\$[./A-Za-z0-9]{53}$/.test(user?.password_hash || '');
+    let valid: boolean;
+    if (bcrypt) {
+      // Bcrypt truncates after 72 bytes. Reject longer input instead of accepting
+      // a different password with the same prefix. PostgreSQL text excludes NUL.
+      if (Buffer.byteLength(body.password, 'utf8') > 72 || body.password.includes('\0')) valid = false;
+      else {
+        const checked = await sql`select crypt(${body.password}, ${user.password_hash}) = ${user.password_hash} as valid`;
+        valid = checked[0]?.valid === true;
+      }
+    } else valid = await verifyPassword(body.password, user?.password_hash || null);
     if (!valid || !user?.active || user.role !== 'admin') return reply(401, { error: 'Email or password is incorrect, or admin access is unavailable.' });
     const token = randomBytes(32).toString('hex');
     const previous = sessionToken(event);

@@ -140,3 +140,33 @@ test('onboarding requests serialize autosave and submit using the returned sessi
     await draft; await submitted; assert.equal(requests[1].session_id, id); assert.equal(requests[1].form.brandName, 'Final'); assert.equal(requests[1].submit, true);
   } finally { globalThis.fetch = previousFetch; globalThis.localStorage = previousStorage; }
 });
+
+test('Neon-created bcrypt account signs in via parameterised pgcrypto verification', async () => {
+  const password_hash = '$2a$12$' + 'a'.repeat(53);
+  configure(query => query.includes('irl_login_limits') ? [{ attempts: 1 }] : query.includes('select id, email') ? [{ id, name: 'Neon admin', email: 'neon@example.com', password_hash, role: 'admin', active: true }] : query.startsWith('select crypt(') ? [{ valid: true }] : []);
+  const result = await auth(event('POST', { action: 'login', email: 'neon@example.com', password: 'manual account password' }, { origin: process.env.APP_ORIGIN }), {});
+  assert.equal(result.statusCode, 200);
+  const check = calls.find(call => call.query.startsWith('select crypt('));
+  assert.equal(check.values[0], 'manual account password');
+  assert(!check.query.includes('manual account password'));
+  assert(!result.body.includes(password_hash));
+  assert(result.headers['set-cookie'].includes('HttpOnly'));
+});
+
+test('incorrect bcrypt password, disabled account and non-admin role cannot sign in', async () => {
+  for (const scenario of [{ valid: false, active: true, role: 'admin' }, { valid: true, active: false, role: 'admin' }, { valid: true, active: true, role: 'member' }]) {
+    configure(query => query.includes('irl_login_limits') ? [{ attempts: 1 }] : query.includes('select id, email') ? [{ id, password_hash: '$2a$12$' + 'a'.repeat(53), ...scenario }] : query.startsWith('select crypt(') ? [{ valid: scenario.valid }] : []);
+    const result = await auth(event('POST', { action: 'login', email: 'neon@example.com', password: 'manual account password' }, { origin: process.env.APP_ORIGIN }), {});
+    assert.equal(result.statusCode, 401);
+    assert(!calls.some(call => call.query.startsWith('insert into public.irl_admin_sessions')));
+  }
+});
+
+test('bcrypt rejects passwords exceeding 72 UTF-8 bytes or containing NUL', async () => {
+  for (const password of ['x'.repeat(73), 'é'.repeat(37), 'password\0suffix']) {
+    configure(query => query.includes('irl_login_limits') ? [{ attempts: 1 }] : query.includes('select id, email') ? [{ id, password_hash: '$2a$12$' + 'a'.repeat(53), role: 'admin', active: true }] : []);
+    const result = await auth(event('POST', { action: 'login', email: 'neon@example.com', password }, { origin: process.env.APP_ORIGIN }), {});
+    assert.equal(result.statusCode, 401);
+    assert(!calls.some(call => call.query.startsWith('select crypt(')));
+  }
+});
