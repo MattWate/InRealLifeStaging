@@ -5,14 +5,16 @@
 1. Apply `database/irl_brand_onboarding_v01.sql` if it has not already been applied.
 2. Apply `database/irl_admin_v01.sql` to the same Neon database used by the Netlify site's `DATABASE_URL`. Apply this **before deploying the code**: both final-submission endpoints now need the snapshot table.
 3. Set **server-side** Netlify variable `APP_ORIGIN` to the site's exact HTTPS origin, for example `https://your-site.netlify.app`, with no trailing slash. Keep `DATABASE_URL` server-side. Do not prefix either with `VITE_`. Deploy previews need their own matching origin and should use a separate test database.
-4. From a trusted terminal with dependencies installed and `DATABASE_URL` supplied securely in the environment, run:
+4. In **Neon SQL Editor**, open `database/irl_create_admin.sql`, replace `REPLACE_EMAIL`, `REPLACE_NAME` and `REPLACE_PASSWORD`, and run it. Repeat for each administrator. Use at least 12 characters and at most 72 UTF-8 bytes for each password. The script hashes passwords with pgcrypto bcrypt before storing them in `public.irl_admin_users`. If the email already exists, it resets the password, restores admin access and revokes existing sessions. Escape any single quote inside an SQL string by doubling it. Treat the edited SQL as a credential: do not commit it or share the saved query.
+
+   The optional terminal-based setup also remains available with `DATABASE_URL` supplied securely in the environment:
 
    ```sh
    npm run admin:user -- admin@example.com "Administrator name"
    ```
 
    The script prompts twice for a hidden password of at least 12 characters. It creates the individual administrator or resets an existing account, and revokes their existing sessions. Passwords never appear in command arguments, logs or the browser bundle.
-5. Deploy the branch and visit `/login`. `/admin` is the completed-submissions dashboard. No public registration is provided.
+5. Deploy `main` and visit `/login`. Sign in using the email and password you entered in Neon. `/admin` is the completed-submissions dashboard. No public registration is provided. An entry in an unrelated `users` table will not grant access: this login uses `public.irl_admin_users` with `role = 'admin'` and `active = true`.
 
 For local development run Netlify Dev with `APP_ORIGIN=http://localhost:8888`, using a **test database**. Vite alone does not serve Netlify functions. `npm run build` uses the existing Netlify build path; `npm test` requires Node 24 (the deployed functions still target Node 20).
 
@@ -22,7 +24,7 @@ For local development run Netlify Dev with `APP_ORIGIN=http://localhost:8888`, u
 - Protected routes: `/admin`, `/admin/submissions/:id`, `/screening/*`, `/rate-engine/*`, `/profiles/curiocity-green-point`. `/app` redirects administrators to `/admin`.
 - The property-intelligence view is now private because its existing endpoint includes raw onboarding answers and operational contacts. A separate curated public property page can be added later.
 - Every data endpoint for these routes verifies the database session, expiry, active account and admin role. Frontend routing alone does not grant access.
-- Passwords use salted scrypt; random session tokens are stored only as SHA-256 hashes in Neon and in Secure/HttpOnly/SameSite=Strict cookies in the browser. Sessions expire after eight hours. Logout deletes the session. Origin checks protect state-changing admin requests.
+- Accounts created in Neon SQL Editor use salted bcrypt with cost 12; accounts created with the terminal script use salted scrypt. Both sign in through the same flow. The server verifies bcrypt through a parameterised pgcrypto query; it never accepts plaintext stored in `password_hash`. Random session tokens are stored only as SHA-256 hashes in Neon and in Secure/HttpOnly/SameSite=Strict cookies in the browser. Sessions expire after eight hours. Logout deletes the session. Origin checks protect state-changing admin requests.
 - Login attempts have shared database-backed limits per email (8 per 15 minutes) and Netlify client IP (30 per 15 minutes). This works across function instances; it is not an in-memory limiter.
 - Brand/operator drafts have separate browser keys. Existing legacy drafts are imported only for their matching flow. Autosaves and submission requests are serialised.
 - Final submission checks basic identity/contact details and brand accuracy confirmation. The server records an immutable final-answer snapshot and marks the session submitted in one transaction. New sessions start in progress, so a failed first save does not appear as a completed form. Subsequent saves of submitted sessions are ignored.
@@ -30,7 +32,7 @@ For local development run Netlify Dev with `APP_ORIGIN=http://localhost:8888`, u
 
 ## Account maintenance
 
-Use the provisioning command again to reset an account's password. To revoke access immediately, execute in the Neon console:
+Run `database/irl_create_admin.sql` again with the same email and a new password to reset an account, or use the optional provisioning command. Both revoke existing sessions. To revoke access immediately, execute in the Neon console:
 
 ```sql
 update public.irl_admin_users set active = false where email = 'admin@example.com';
