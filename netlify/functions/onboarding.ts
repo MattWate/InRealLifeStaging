@@ -1,5 +1,6 @@
 import type { Handler } from '@netlify/functions';
 import { neon } from '@neondatabase/serverless';
+import { validateSubmission } from '../lib/onboarding-validation';
 
 type FormValue = string | string[];
 type Payload = {
@@ -28,7 +29,10 @@ export const handler: Handler = async (event) => {
   if (!databaseUrl) return reply(500, { error: 'DATABASE_URL is not configured.' });
 
   try {
+    if ((event.body?.length || 0) > 262144) return reply(413, { error: 'This form is too large to save.' });
     const body = JSON.parse(event.body || '{}') as Payload;
+    const invalid = validateSubmission(body, 'operator');
+    if (invalid) return reply(400, { error: invalid });
     if (body.flow !== 'operator') return reply(400, { error: 'This endpoint currently supports operator onboarding.' });
     const form = body.form || {};
     const operatorName = text(form.operatorName);
@@ -39,7 +43,7 @@ export const handler: Handler = async (event) => {
     return reply(200, result);
   } catch (error) {
     console.error('Operator onboarding save failed', error);
-    return reply(500, { error: readableError(error) });
+    return reply(error instanceof SyntaxError ? 400 : 500, { error: error instanceof SyntaxError ? 'Invalid request.' : 'Unable to save online. Please try again.' });
   }
 };
 
@@ -50,12 +54,13 @@ async function saveOperatorOnboarding(sql: any, body: Payload, form: Record<stri
 
   if (sessionId) {
     const sessions = await sql`
-      select id, organisation_id, property_id
+      select id, organisation_id, property_id, status, submitted_at
       from public.onboarding_sessions
       where id = ${sessionId}::uuid and onboarding_type = 'operator'
       limit 1
     `;
     if (!sessions.length) throw new Error('The saved onboarding session could not be found. Clear the local draft and start again.');
+    if (sessions[0].status === 'submitted') return { ok: true, session_id: sessionId, status: 'submitted', saved_at: sessions[0].submitted_at };
     organisationId = sessions[0].organisation_id;
     propertyId = sessions[0].property_id || null;
   } else {
@@ -80,7 +85,7 @@ async function saveOperatorOnboarding(sql: any, body: Payload, form: Record<stri
         organisation_id, property_id, onboarding_type, current_step, status, completion_percentage
       ) values (
         ${organisationId}::uuid, ${propertyId}::uuid, 'operator', ${nullable(body.current_step)},
-        ${body.submit ? 'submitted' : 'in_progress'}, ${percentage(body.completion_percentage)}
+        'in_progress', ${percentage(body.completion_percentage)}
       ) returning id
     `;
     sessionId = sessionRows[0].id;
@@ -125,7 +130,7 @@ async function saveOperatorOnboarding(sql: any, body: Payload, form: Record<stri
 
   const answerStatus = body.submit ? 'submitted' : 'draft';
   for (const [fieldKey, answer] of Object.entries(form)) {
-    if (!SECTION_BY_FIELD[fieldKey] || isBlank(answer)) continue;
+    if (!SECTION_BY_FIELD[fieldKey]) continue;
     await sql`
       insert into public.onboarding_answers (
         onboarding_session_id, section_key, field_key, answer_json, status
@@ -142,16 +147,21 @@ async function saveOperatorOnboarding(sql: any, body: Payload, form: Record<stri
 
   if (propertyId) await syncSpaces(sql, propertyId, form.spaces);
 
-  await sql`
+  const finalUpdate = sql`
     update public.onboarding_sessions set
       property_id = ${propertyId}::uuid,
       current_step = ${nullable(body.current_step)},
-      completion_percentage = ${percentage(body.completion_percentage)},
-      status = ${body.submit ? 'submitted' : 'in_progress'},
-      submitted_at = ${body.submit ? new Date().toISOString() : null}::timestamptz,
+      completion_percentage = case when status = 'submitted' or ${body.submit === true} then 100 else ${percentage(body.completion_percentage)} end,
+      status = case when status = 'submitted' or ${body.submit === true} then 'submitted' else status end,
+      submitted_at = coalesce(submitted_at, ${body.submit ? new Date().toISOString() : null}::timestamptz),
       updated_at = now()
     where id = ${sessionId}::uuid
   `;
+  if (body.submit) await sql.transaction([
+    finalUpdate,
+    sql`insert into public.irl_submission_snapshots (session_id, answers) values (${sessionId}::uuid, ${JSON.stringify(form)}::jsonb) on conflict (session_id) do nothing`,
+  ]);
+  else await finalUpdate;
 
   return {
     ok: true,

@@ -1,9 +1,10 @@
+import { adminOnly } from '../lib/admin-auth';
 import type { Handler } from '@netlify/functions';
 import { neon } from '@neondatabase/serverless';
 
 type Payload = Record<string, any>;
 
-export const handler: Handler = async (event) => {
+export const handler: Handler = adminOnly(async (event) => {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) return reply(500, { error: 'DATABASE_URL is not configured.' });
   const sql = neon(databaseUrl);
@@ -85,7 +86,7 @@ export const handler: Handler = async (event) => {
     console.error('Rate engine API failed', error);
     return reply(500, { error: readableError(error) });
   }
-};
+});
 
 function score(value: unknown) {
   const n = Number(value);
