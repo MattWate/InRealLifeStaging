@@ -16,6 +16,16 @@ const token = 'a'.repeat(64);
 const id = '11111111-1111-1111-1111-111111111111';
 const event = (method = 'GET', body = null, headers = {}) => ({ httpMethod: method, headers, body: body == null ? null : JSON.stringify(body), queryStringParameters: {} });
 const signed = () => event('GET', null, { cookie: `__Host-irl_admin=${token}` });
+const completeBrandForm = () => ({
+  brandName: 'Example', brandWebsite: 'https://example.com', brandCountry: 'South Africa', activeMarkets: 'South Africa', brandDescription: 'A concise brand description.',
+  firstName: 'A', lastName: 'B', email: 'a@example.com', jobTitle: 'Director', onboardingRole: ['Both'],
+  partOfGroup: ['No'], brandPrimaryCategory: ['Food & Beverage'], brandDifferentiator: ['Product quality'], brandValues: ['Craft'], salesChannels: ['Brand website'],
+  productName: 'Product', productScope: ['One specific product'], hasProductWebpage: ['No'], productCategory: ['Food & Beverage'], productSubcategory: ['Tea & Coffee'], priceCurrency: 'ZAR', priceMin: '100', sameProductAvailability: ['Yes'], internationalShipping: ['No'],
+  audienceDescription: 'Adults who value quality.', audienceEvidence: ['Customer or sales data'], audienceGeography: ['Primarily South African'], decisionFactors: ['Quality', 'Convenience', 'Price'], discoveryOpenness: ['4'],
+  customerOutcome: ['Feel good or indulge'], needContext: ['During daily routine'], currentAlternative: ['A competitor brand'], primaryBarrier: ['Awareness — they don\'t know it exists'], barrierReducers: ['Experiencing it firsthand — trying it, seeing or feeling the quality'],
+  marketingChannels: ['Social media (organic)'], marketingChannelRank: ['Social media (organic)'], measuredAcquisitionChannel: ["We don't currently know"], paidMarketing: ['No, not yet'], experientialHistory: ['None of these'], irlOpportunity: ["People know us but haven't tried us"], primarySuccessResult: 'More qualified product trial', successSignals: ['Guests reached'],
+  brandSuggestedPlacements: ['Kitchen or dining'], handlingRequirements: ['None'], supplyCapability: ['Yes'], profileConfirmed: 'yes',
+});
 
 test('salted password hashes validate only the correct password', async () => {
   const a = await hashPassword('a long test password'); const b = await hashPassword('a long test password');
@@ -78,7 +88,8 @@ test('unknown or draft submission detail is 404', async () => {
   assert.equal((await submissions(request, {})).statusCode, 404);
 });
 test('brand submission requires contact, product and accuracy confirmation', () => {
-  const body = { flow: 'brand', submit: true, form: { brandName: 'Example', firstName: 'A', lastName: 'B', email: 'a@example.com', productName: 'Product' } };
+  const body = { flow: 'brand', submit: true, form: completeBrandForm() };
+  delete body.form.profileConfirmed;
   assert.match(validateSubmission(body, 'brand'), /Confirm/);
   body.form.profileConfirmed = 'yes'; assert.equal(validateSubmission(body, 'brand'), null);
   body.form.email = 'invalid'; assert.match(validateSubmission(body, 'brand'), /email/);
@@ -111,7 +122,7 @@ test('operator submission marks completion and snapshots final answers in one tr
 });
 test('brand submission marks completion and snapshots final answers in one transaction', async () => {
   configure(query => query.includes('from public.onboarding_sessions') ? [{ id, organisation_id: id, status: 'in_progress' }] : query.includes('returning id') ? [{ id }] : []);
-  const form = { brandName: 'Example', firstName: 'A', lastName: 'B', email: 'a@example.com', productName: 'Product', profileConfirmed: 'yes' };
+  const form = completeBrandForm();
   const result = await saveBrandOnboarding(neon(), { session_id: id, flow: 'brand', form, submit: true });
   assert.equal(result.status, 'submitted');
   const tx = calls.slice(calls.findIndex(c => c.query === 'BEGIN'));

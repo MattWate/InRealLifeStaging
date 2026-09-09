@@ -1,6 +1,6 @@
 # IRL Network staging
 
-Initial staging build for the IRL brand and operator onboarding journeys.
+Staging application for the IRL public site, approved V03 brand onboarding, operator onboarding and protected administration tools.
 
 ## Stack
 
@@ -31,17 +31,14 @@ Database test endpoint after deployment:
 /.netlify/functions/db-health
 ```
 
-## Current state
+## Database migrations
 
-The first commit provides:
+Apply the migrations relevant to the deployed features in this order:
 
-- Brand and operator journey selector
-- Responsive guided onboarding shell
-- Desktop step navigation and mobile progress treatment
-- Progressive optional sections
-- Multi-select choice controls
-- Local browser autosave for early UX testing
-- Review screen
-- Neon connection health function
+1. `database/irl_brand_onboarding_v01.sql`
+2. `database/irl_brand_onboarding_v03.sql`
+3. `database/irl_admin_v01.sql`
 
-The next phase is to connect authenticated onboarding sessions to Neon and replace browser-only draft storage with server-side autosave.
+The V03 migration is additive. It keeps the V01 fields and submissions while adding the approved V03 evidence, audience, placement, value and success structures.
+
+Brand and operator drafts autosave locally and to Neon after an organisation name is entered. File upload storage and member account ownership remain future work.
