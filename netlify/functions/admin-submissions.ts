@@ -9,7 +9,9 @@ export const handler = adminOnly(async event => {
     if (!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id)) return reply(400, { error: 'Invalid submission.' });
     const rows = await sql`
       select s.id, s.onboarding_type as type, s.submitted_at, o.name, o.primary_email as email,
-        p.name as property_name, snap.answers as snapshot
+        p.name as property_name, s.schema_version, snap.answers as snapshot,
+        coalesce((select bool_or(a.review_required) from public.brand_audience_profiles a where a.onboarding_session_id = s.id), false) as audience_review_required,
+        coalesce((select bool_or(bp.legal_review_required) from public.brand_onboarding_products bp where bp.onboarding_session_id = s.id), false) as legal_review_required
       from public.onboarding_sessions s join public.organisations o on o.id = s.organisation_id
       left join public.properties p on p.id = s.property_id
       left join public.irl_submission_snapshots snap on snap.session_id = s.id

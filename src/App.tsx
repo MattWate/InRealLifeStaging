@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Building2, Check, Circle, Save, Sparkles, Store } from 'lucide-react';
-import BrandOnboardingStep from './BrandOnboarding';
-import { initialFlow, readDraft, saveOnboarding } from './onboarding-persistence';
+import BrandOnboardingStep, { type BrandForm, validateBrandStep } from './BrandOnboarding';
+import { initialFlow, readDraft, saveOnboarding, type Draft, type DraftValue } from './onboarding-persistence';
 
 type Flow = 'brand' | 'operator';
 
@@ -18,11 +18,9 @@ const brandSteps: Step[] = [
   { id: 'product', title: 'The product or range', eyebrow: 'Step 3', intro: 'Tell us which product or range you would like IRL to consider first. This gives us a clear starting point for matching.' },
   { id: 'audience', title: 'Who you want to reach', eyebrow: 'Step 4', intro: 'Help us understand the people for whom this product is most relevant. Complete the core questions, then add more detail only where it improves the match.' },
   { id: 'need', title: 'Customer need and barrier', eyebrow: 'Step 5', intro: 'Understanding the need and the barrier helps IRL design a more relevant real-life experience.' },
-  { id: 'value', title: 'How IRL should add value', eyebrow: 'Step 6', intro: 'Give us a light view of what is already working and the main gap a real-life product experience should help address.' },
+  { id: 'value-success', title: 'Value and success', eyebrow: 'Step 6', intro: 'Help IRL understand how you reach this audience today, where the opportunity lies and what useful evidence of success should look like.' },
   { id: 'operations', title: 'Making it work', eyebrow: 'Step 7', intro: 'Tell us only about the practical requirements that could affect whether the product can operate successfully in a hospitality property.' },
-  { id: 'success', title: 'What success looks like', eyebrow: 'Step 8', intro: 'Keep this focused on the evidence that would make the partnership useful, not a long list of vanity metrics.' },
-  { id: 'requirements', title: 'Brand requirements', eyebrow: 'Step 9', intro: 'Share only the requirements IRL must know to protect the brand, the guest and the property.' },
-  { id: 'review', title: 'Review and submit', eyebrow: 'Step 10', intro: 'Review your Brand Profile, make any final edits and confirm that it is accurate before sending it to IRL.' },
+  { id: 'review', title: 'Review and submit', eyebrow: 'Step 8', intro: 'Review your Brand Profile, make any final edits and confirm that it is accurate before sending it to IRL.' },
 ];
 
 const operatorSteps: Step[] = [
@@ -39,10 +37,16 @@ function App() {
   const [flow, setFlow] = useState<Flow | null>(initialFlow);
   const [stepIndex, setStepIndex] = useState(0);
   const [savedAt, setSavedAt] = useState<string>('');
-  const [form, setForm] = useState<Record<string, string | string[]>>(() => readDraft(initialFlow()));
+  const [form, setForm] = useState<Draft>(() => {
+    const selectedFlow = initialFlow();
+    const draft = readDraft(selectedFlow);
+    const linkedBrand = new URLSearchParams(window.location.search).get('brand')?.trim();
+    return selectedFlow === 'brand' && linkedBrand && !draft.brandName ? { ...draft, brandName: linkedBrand } : draft;
+  });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   const steps = flow === 'operator' ? operatorSteps : brandSteps;
   const progress = Math.round(((stepIndex + 1) / steps.length) * 100);
@@ -66,9 +70,13 @@ function App() {
     return () => { active = false; window.clearTimeout(timer); };
   }, [form, flow, submitted, submitting, current.id, progress]);
 
-  function chooseFlow(next: Flow) { window.history.replaceState(null, '', `/onboarding?flow=${next}`); setForm(readDraft(next)); setFlow(next); setStepIndex(0); setSubmitted(false); setSaveError(''); setSavedAt(''); }
+  function chooseFlow(next: Flow) { window.history.replaceState(null, '', `/onboarding?flow=${next}`); setForm(readDraft(next)); setFlow(next); setStepIndex(0); setSubmitted(false); setSaveError(''); setValidationError(''); setSavedAt(''); }
   async function submitProfile() {
     if (!flow || submitting) return;
+    if (flow === 'brand') {
+      const missing = brandSteps.flatMap(step => validateBrandStep(step.id, form as BrandForm));
+      if (missing.length) { setValidationError(`Please complete: ${[...new Set(missing)].join(', ')}.`); return; }
+    }
     setSubmitting(true); setSaveError('');
     try {
       const result = await saveOnboarding(form, flow, 'review', 100, true);
@@ -80,12 +88,31 @@ function App() {
 
   const completed = useMemo(() => new Set(steps.slice(0, stepIndex).map((step) => step.id)), [steps, stepIndex]);
 
-  const update = (key: string, value: string | string[]) => setForm((currentForm) => ({ ...currentForm, [key]: value }));
+  const update = (key: string, value: DraftValue) => { setValidationError(''); setForm((currentForm) => ({ ...currentForm, [key]: value })); };
   const toggle = (key: string, value: string, max = 99) => {
-    const existing = Array.isArray(form[key]) ? (form[key] as string[]) : [];
-    if (existing.includes(value)) update(key, existing.filter((item) => item !== value));
-    else if (existing.length < max) update(key, [...existing, value]);
+    const currentValue = form[key];
+    const existing = Array.isArray(currentValue) && currentValue.every(item => typeof item === 'string') ? currentValue as string[] : [];
+    const exclusive = ['None', 'None of these', 'Not sure', 'Not time-specific', 'Age is not a priority', 'Life stage is not a priority', 'Geography is not a priority'];
+    let next = existing;
+    if (existing.includes(value)) next = existing.filter((item) => item !== value);
+    else if (max === 1) next = [value];
+    else if (max > 1 && exclusive.includes(value)) next = [value];
+    else if (existing.length < max) next = [...existing.filter(item => !exclusive.includes(item)), value];
+    update(key, next);
+    if (key === 'marketingChannels') {
+      const rank = Array.isArray(form.marketingChannelRank) ? form.marketingChannelRank as string[] : [];
+      const measured = String((form.measuredAcquisitionChannel as string[] | undefined)?.[0] || '');
+      setForm(currentForm => ({ ...currentForm, [key]: next, marketingChannelRank: rank.filter(item => next.includes(item)), measuredAcquisitionChannel: measured === "We don't currently know" || next.includes(measured) ? form.measuredAcquisitionChannel || [] : [] }));
+    }
   };
+  function continueProfile() {
+    if (flow === 'brand') {
+      const missing = validateBrandStep(current.id, form as BrandForm);
+      if (missing.length) { setValidationError(`Please complete: ${missing.join(', ')}.`); return; }
+    }
+    setValidationError('');
+    setStepIndex(index => Math.min(steps.length - 1, index + 1));
+  }
 
   if (!flow) {
     return (
@@ -122,7 +149,7 @@ function App() {
           <p className="profile-label">{flow === 'brand' ? 'Brand profile' : 'Operator profile'}</p>
           <nav className="step-list" aria-label="Onboarding progress">
             {steps.map((step, index) => (
-              <button key={step.id} disabled={submitting} className={index === stepIndex ? 'active' : ''} onClick={() => setStepIndex(index)}>
+              <button key={step.id} disabled={submitting} className={index === stepIndex ? 'active' : ''} onClick={() => { setValidationError(''); setStepIndex(index); }}>
                 <span className="step-icon">{completed.has(step.id) ? <Check size={14} /> : index === stepIndex ? <Circle size={12} fill="currentColor" /> : index + 1}</span>
                 <span>{step.title}</span>
               </button>
@@ -141,21 +168,22 @@ function App() {
         <div className="form-content">
           <div className="save-state" role="status"><Save size={14} /> {submitting ? 'Submitting profile…' : savedAt || 'Autosave on'}</div>
           {saveError && <p role="alert">{saveError} Your draft is still saved on this device.</p>}
+          {validationError && <p className="validation-error" role="alert">{validationError}</p>}
           <p className="eyebrow">{current.eyebrow}</p>
           <h1>{current.title}</h1>
           <p className="intro">{current.intro}</p>
 
           <fieldset className="question-card onboarding-fields" disabled={submitting}>
             {flow === 'brand' ? (
-              <BrandOnboardingStep step={current.id} form={form} update={update} toggle={toggle} />
+              <BrandOnboardingStep step={current.id} form={form as BrandForm} update={update} toggle={toggle} />
             ) : (
-              <OperatorStep step={current.id} form={form} update={update} toggle={toggle} />
+              <OperatorStep step={current.id} form={form as Record<string, string | string[]>} update={update} toggle={toggle} />
             )}
           </fieldset>
 
           <footer className="form-actions">
-            <button className="button secondary" disabled={submitting || stepIndex === 0} onClick={() => setStepIndex((index) => Math.max(0, index - 1))}><ArrowLeft size={18} /> Back</button>
-            <button className="button primary" disabled={submitting} onClick={() => { if (stepIndex === steps.length - 1) void submitProfile(); else setStepIndex(index => index + 1); }}>{submitting ? 'Submitting…' : stepIndex === steps.length - 1 ? 'Submit profile' : 'Save and continue'} <ArrowRight size={18} /></button>
+            <button className="button secondary" disabled={submitting || stepIndex === 0} onClick={() => { setValidationError(''); setStepIndex((index) => Math.max(0, index - 1)); }}><ArrowLeft size={18} /> Back</button>
+            <button className="button primary" disabled={submitting} onClick={() => { if (stepIndex === steps.length - 1) void submitProfile(); else continueProfile(); }}>{submitting ? 'Submitting…' : stepIndex === steps.length - 1 ? 'Submit profile' : 'Save and continue'} <ArrowRight size={18} /></button>
           </footer>
         </div>
       </main>

@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { adminFetch } from './Auth';
 import { fieldLabels, fieldSections, sectionTitles, sectionOrder } from './questionnaire';
 
-type Submission = { id: string; type: 'brand' | 'operator'; name: string; email: string | null; property_name: string | null; submitted_at: string | null };
+type Submission = { id: string; type: 'brand' | 'operator'; name: string; email: string | null; property_name: string | null; submitted_at: string | null; schema_version?: string | null; audience_review_required?: boolean; legal_review_required?: boolean };
 type List = { submissions: Submission[]; hasMore: boolean; page: number; counts: { total: number; brands: number; operators: number } };
 type Detail = { submission: Submission; answers: { field_key: string; section_key?: string; answer_json: unknown }[] };
 const date = (value: string | null) => value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'Date unavailable';
@@ -70,7 +70,7 @@ export function SubmissionDetail() {
   const order = data ? sectionOrder[data.submission.type] : [];
   return <main className="irl-container admin-content"><Link to="/admin">← All submissions</Link>
     {error ? <div className="admin-state"><p role="alert">{error}</p><button className="irl-button irl-button--secondary" onClick={() => setVersion(v => v + 1)}>Try again</button></div> : !data ? <p role="status" className="admin-state">Loading answers…</p> : <>
-      <div className="admin-title"><div><p className="irl-eyebrow">{data.submission.type} submission</p><h1>{data.submission.name}</h1><p>{[data.submission.property_name, data.submission.email].filter(Boolean).join(' · ')}</p><p className="admin-muted">Submitted {date(data.submission.submitted_at)}</p></div><span className="irl-chip">Submitted</span></div>
+      <div className="admin-title"><div><p className="irl-eyebrow">{data.submission.type} submission</p><h1>{data.submission.name}</h1><p>{[data.submission.property_name, data.submission.email].filter(Boolean).join(' · ')}</p><p className="admin-muted">Submitted {date(data.submission.submitted_at)}{data.submission.schema_version ? ` · ${data.submission.schema_version}` : ''}</p></div><div className="admin-statuses"><span className="irl-chip">Submitted</span>{data.submission.audience_review_required && <span className="irl-chip admin-chip--review">Audience review required</span>}{data.submission.legal_review_required && <span className="irl-chip admin-chip--review">Legal review required</span>}</div></div>
       {!data.answers.length && <p className="admin-state">No questionnaire answers were recorded for this submission.</p>}
       {Object.entries(groups).sort(([a], [b]) => (order.indexOf(a) < 0 ? 99 : order.indexOf(a)) - (order.indexOf(b) < 0 ? 99 : order.indexOf(b))).map(([section, answers]) => <section className="irl-card admin-answers" key={section}>
         <h2>{sectionTitles[data.submission.type][section] || human(section)}</h2><dl>{answers.map(answer => <div key={answer.field_key}><dt>{fieldLabels[answer.field_key] || human(answer.field_key)}</dt><dd>{valueText(answer.answer_json)}</dd></div>)}</dl>

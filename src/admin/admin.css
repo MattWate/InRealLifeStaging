@@ -33,6 +33,8 @@
 .admin-answers dl > div { display: grid; grid-template-columns: minmax(180px, 1fr) 2fr; gap: var(--irl-space-6); border-top: 1px solid var(--irl-border-light); padding-block: var(--irl-space-4); }
 .admin-answers dt { color: var(--irl-text-muted); }
 .admin-answers dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-statuses { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--irl-space-2); }
+.admin-chip--review { border-color: #b46c24; color: #7a4311; background: #fff4e5; }
 @media (max-width: 680px) {
   .admin-header { gap: var(--irl-space-4); }
   .admin-header nav { order: 3; flex-basis: 100%; }

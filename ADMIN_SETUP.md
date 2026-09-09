@@ -2,7 +2,7 @@
 
 ## Deploy and enable
 
-1. Apply `database/irl_brand_onboarding_v01.sql` if it has not already been applied.
+1. Apply `database/irl_brand_onboarding_v01.sql` if it has not already been applied, then apply `database/irl_brand_onboarding_v03.sql`. V03 is additive and preserves all V01 submissions.
 2. Apply `database/irl_admin_v01.sql` to the same Neon database used by the Netlify site's `DATABASE_URL`. Apply this **before deploying the code**: both final-submission endpoints now need the snapshot table.
 3. Set **server-side** Netlify variable `APP_ORIGIN` to the site's exact HTTPS origin, for example `https://your-site.netlify.app`, with no trailing slash. Keep `DATABASE_URL` server-side. Do not prefix either with `VITE_`. Deploy previews need their own matching origin and should use a separate test database.
 4. In **Neon SQL Editor**, open `database/irl_create_admin.sql`, replace `REPLACE_EMAIL`, `REPLACE_NAME` and `REPLACE_PASSWORD`, and run it. Repeat for each administrator. Use at least 12 characters and at most 72 UTF-8 bytes for each password. The script hashes passwords with pgcrypto bcrypt before storing them in `public.irl_admin_users`. If the email already exists, it resets the password, restores admin access and revokes existing sessions. Escape any single quote inside an SQL string by doubling it. Treat the edited SQL as a credential: do not commit it or share the saved query.
@@ -27,7 +27,7 @@ For local development run Netlify Dev with `APP_ORIGIN=http://localhost:8888`, u
 - Accounts created in Neon SQL Editor use salted bcrypt with cost 12; accounts created with the terminal script use salted scrypt. Both sign in through the same flow. The server verifies bcrypt through a parameterised pgcrypto query; it never accepts plaintext stored in `password_hash`. Random session tokens are stored only as SHA-256 hashes in Neon and in Secure/HttpOnly/SameSite=Strict cookies in the browser. Sessions expire after eight hours. Logout deletes the session. Origin checks protect state-changing admin requests.
 - Login attempts have shared database-backed limits per email (8 per 15 minutes) and Netlify client IP (30 per 15 minutes). This works across function instances; it is not an in-memory limiter.
 - Brand/operator drafts have separate browser keys. Existing legacy drafts are imported only for their matching flow. Autosaves and submission requests are serialised.
-- Final submission checks basic identity/contact details and brand accuracy confirmation. The server records an immutable final-answer snapshot and marks the session submitted in one transaction. New sessions start in progress, so a failed first save does not appear as a completed form. Subsequent saves of submitted sessions are ignored.
+- Final brand submission checks every required V03 section, conditional counterpart/product/compliance fields and brand accuracy confirmation. The server records an immutable final-answer snapshot and marks the session submitted in one transaction. New sessions start in progress, so a failed first save does not appear as a completed form. Subsequent saves of submitted sessions are ignored.
 - The dashboard lists submitted sessions only, newest first, with name/email/property search, type filters, paging, counts, and all recorded answers grouped into questionnaire sections. Existing submissions without a snapshot use the legacy answers table. Historical answers that were never persisted cannot be recovered by this change.
 
 ## Account maintenance
