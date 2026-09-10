@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Building2, Check, Circle, Save, Sparkles, Store } from 'lucide-react';
 import BrandOnboardingStep, { type BrandForm, validateBrandStep } from './BrandOnboarding';
-import { initialFlow, readDraft, saveOnboarding, type Draft, type DraftValue } from './onboarding-persistence';
+import { clearOnboarding, initialFlow, readDraft, saveOnboarding, type Draft, type DraftValue } from './onboarding-persistence';
 
 type Flow = 'brand' | 'operator';
 
@@ -49,7 +49,7 @@ function App() {
   const [validationError, setValidationError] = useState('');
 
   const steps = flow === 'operator' ? operatorSteps : brandSteps;
-  const progress = Math.round(((stepIndex + 1) / steps.length) * 100);
+  const progress = Math.min(95, Math.round(((stepIndex + 1) / steps.length) * 100));
   const current = steps[stepIndex];
 
   useEffect(() => {
@@ -81,6 +81,7 @@ function App() {
     try {
       const result = await saveOnboarding(form, flow, 'review', 100, true);
       if (result.status !== 'submitted') throw new Error('The profile was saved but not submitted. Please try again.');
+      clearOnboarding(flow);
       setSubmitted(true);
     } catch (error) { setSaveError((error as Error).message); }
     finally { setSubmitting(false); }
@@ -113,6 +114,10 @@ function App() {
     setValidationError('');
     setStepIndex(index => Math.min(steps.length - 1, index + 1));
   }
+  function startAnotherProfile() {
+    if (!flow) return;
+    clearOnboarding(flow); setForm({}); setStepIndex(0); setSubmitted(false); setSavedAt(''); setSaveError(''); setValidationError('');
+  }
 
   if (!flow) {
     return (
@@ -139,7 +144,7 @@ function App() {
     );
   }
 
-  if (submitted) return <main className="welcome-shell"><section className="welcome-card"><div className="brand-mark">IRL</div><h1>Profile submitted</h1><p>Your {flow} profile has been saved and is ready for the IRL team to review. Contact IRL if any details need correcting.</p><a className="irl-button irl-button--primary" href="/">Back to IRL</a></section></main>;
+  if (submitted) return <main className="welcome-shell"><section className="welcome-card"><div className="brand-mark">IRL</div><p className="eyebrow">Submission received</p><h1>Profile successfully submitted</h1><p>Your {flow} profile is safely stored and ready for the IRL team to review. You can now close this page.</p><div className="submission-actions"><a className="irl-button irl-button--primary" href="/">Back to IRL</a><button className="irl-button irl-button--secondary" onClick={startAnotherProfile}>Start another {flow} profile</button></div></section></main>;
 
   return (
     <div className="app-shell">

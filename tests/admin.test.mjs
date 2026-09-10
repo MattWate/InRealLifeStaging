@@ -68,12 +68,12 @@ test('valid login creates an opaque session and never returns a password hash', 
   const raw = result.headers['set-cookie'].split(';')[0].split('=')[1];
   assert.equal(calls.find(c => c.query.startsWith('insert into public.irl_admin_sessions')).values[0], digest(raw));
 });
-test('dashboard queries only submitted sessions and parameterises searches', async () => {
-  configure(query => query.includes('join public.irl_admin_users') ? [{ id, role: 'admin' }] : query.includes('count(*)') ? [{ total: 0, brands: 0, operators: 0 }] : []);
-  const request = signed(); request.queryStringParameters = { q: "%' OR true --", type: 'brand' };
+test('dashboard queries all application stages and parameterises filters', async () => {
+  configure(query => query.includes('join public.irl_admin_users') ? [{ id, role: 'admin' }] : query.includes('count(*)') ? [{ total: 0, brands: 0, operators: 0, in_progress: 0, review: 0, approved: 0 }] : []);
+  const request = signed(); request.queryStringParameters = { q: "%' OR true --", type: 'brand', status: 'in_progress' };
   const result = await submissions(request, {}); assert.equal(result.statusCode, 200);
-  const query = calls.find(c => c.query.includes('order by s.submitted_at'));
-  assert(query.query.includes("s.status = 'submitted'")); assert(!query.query.includes('OR true --')); assert(query.values.includes('brand'));
+  const query = calls.find(c => c.query.includes('order by s.updated_at'));
+  assert(!query.query.includes("where s.status = 'submitted'")); assert(!query.query.includes('OR true --')); assert(query.values.includes('brand')); assert(query.values.includes('in_progress'));
   assert(query.query.includes('s.schema_version')); assert(query.query.includes('audience_review_required')); assert(query.query.includes('legal_review_required'));
   assert(result.headers['cache-control'].includes('no-store'));
 });
@@ -83,10 +83,18 @@ test('detail uses final snapshot and does not query mutable answers', async () =
   const result = await submissions(request, {}); assert.equal(result.statusCode, 200); assert.equal(JSON.parse(result.body).answers[0].answer_json, 'Final name');
   assert(!calls.some(c => c.query.includes('from public.onboarding_answers')));
 });
-test('unknown or draft submission detail is 404', async () => {
+test('unknown application detail is 404', async () => {
   configure(query => query.includes('join public.irl_admin_users') ? [{ id, role: 'admin' }] : []);
   const request = signed(); request.queryStringParameters = { id };
   assert.equal((await submissions(request, {})).statusCode, 404);
+});
+test('admin can update review state and operational details without changing applicant answers', async () => {
+  configure(query => query.includes('join public.irl_admin_users') ? [{ id, role: 'admin' }] : query.startsWith('select id, organisation_id') ? [{ id, organisation_id: id, property_id: id, schema_version: 'operator-onboarding-v01' }] : []);
+  const request = event('PATCH', { id, review_status: 'in_review', review_notes: 'Call the property.', name: 'Example operator', email: 'team@example.com', property_name: 'Example property' }, { origin: process.env.APP_ORIGIN, cookie: `__Host-irl_admin=${token}` });
+  const result = await submissions(request, {}); assert.equal(result.statusCode, 200);
+  assert(calls.some(call => call.query.startsWith('update public.organisations')));
+  assert(calls.some(call => call.query.startsWith('insert into public.onboarding_audit_log')));
+  assert(!calls.some(call => call.query.includes('update public.onboarding_answers')));
 });
 test('brand submission requires contact, product and accuracy confirmation', () => {
   const body = { flow: 'brand', submit: true, form: completeBrandForm() };
@@ -151,6 +159,16 @@ test('onboarding requests serialize autosave and submit using the returned sessi
     await new Promise(resolve => setImmediate(resolve)); assert.equal(requests.length, 1); release();
     await draft; await submitted; assert.equal(requests[1].session_id, id); assert.equal(requests[1].form.brandName, 'Final'); assert.equal(requests[1].submit, true);
   } finally { globalThis.fetch = previousFetch; globalThis.localStorage = previousStorage; }
+});
+test('completed onboarding can clear its draft and session before another profile starts', async () => {
+  const { clearOnboarding } = await import('../src/onboarding-persistence.ts');
+  const previousStorage = globalThis.localStorage;
+  const storage = new Map([['irl-onboarding-session-brand', id], ['irl-draft-brand', '{}'], ['irl-flow', 'brand'], ['unrelated', 'keep']]);
+  globalThis.localStorage = { getItem: key => storage.get(key) || null, removeItem: key => storage.delete(key) };
+  try {
+    clearOnboarding('brand');
+    assert.equal(storage.has('irl-onboarding-session-brand'), false); assert.equal(storage.has('irl-draft-brand'), false); assert.equal(storage.has('irl-flow'), false); assert.equal(storage.get('unrelated'), 'keep');
+  } finally { globalThis.localStorage = previousStorage; }
 });
 
 test('Neon-created bcrypt account signs in via parameterised pgcrypto verification', async () => {

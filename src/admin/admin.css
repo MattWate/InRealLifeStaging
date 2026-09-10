@@ -11,8 +11,10 @@
 .admin-content { padding-block: var(--irl-space-8); }
 .admin-title { display: flex; align-items: center; justify-content: space-between; gap: var(--irl-space-4); margin-block: var(--irl-space-6); }
 .admin-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--irl-space-4); margin-block: var(--irl-space-6); }
+.admin-stats--four { grid-template-columns: repeat(4, 1fr); }
 .admin-stats > div { display: grid; gap: var(--irl-space-2); padding: var(--irl-space-6); }
 .admin-stats strong { font-size: 2rem; }
+.admin-stats small { color: var(--irl-text-muted); line-height: 1.4; }
 .admin-filters { display: flex; flex-wrap: wrap; gap: var(--irl-space-4); align-items: end; margin-block: var(--irl-space-6); }
 .admin-filters label:first-child { flex: 1; min-width: 220px; }
 .admin-table-wrap { overflow-x: auto; }
@@ -35,6 +37,16 @@
 .admin-answers dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .admin-statuses { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--irl-space-2); }
 .admin-chip--review { border-color: #b46c24; color: #7a4311; background: #fff4e5; }
+.admin-status { display: inline-flex; align-items: center; width: max-content; padding: 6px 10px; border: 1px solid var(--irl-border); border-radius: var(--irl-radius-pill); background: var(--irl-surface-muted); font-size: .78rem; font-weight: 750; white-space: nowrap; }
+.admin-status--in-progress { background: #f2f3f4; color: #59636c; }
+.admin-status--needs-review { background: #fff4e5; border-color: #d6a05e; color: #7a4311; }
+.admin-status--in-review { background: #eaf2fb; border-color: #8aafd4; color: #244e77; }
+.admin-status--approved { background: #e9f5ec; border-color: #86b590; color: #245c31; }
+.admin-status--changes-requested { background: #fff0ed; border-color: #d7988c; color: #7b3026; }
+.admin-status--rejected { background: #f5eaea; border-color: #c99292; color: #702c2c; }
+.admin-progress { display: grid; width: 150px; height: 7px; border-radius: var(--irl-radius-pill); background: var(--irl-border-light); }
+.admin-progress > span { grid-area: 1 / 1; max-width: 100%; border-radius: inherit; background: var(--irl-gold); }
+.admin-progress small { grid-area: 2 / 1; margin-top: var(--irl-space-2); white-space: nowrap; }
 .admin-table-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--irl-space-2); }
 .admin-table-review .irl-chip { padding: 3px 8px; font-size: .75rem; }
 .admin-brand-overview { margin-block: var(--irl-space-8); }
@@ -61,15 +73,22 @@
 .admin-repeatables > article { padding: var(--irl-space-4); border: 1px solid var(--irl-border-light); border-radius: var(--irl-radius-sm); background: var(--irl-surface-muted); }
 .admin-repeatables article > strong { display: block; margin-bottom: var(--irl-space-3); }
 .admin-repeatables dl > div { grid-template-columns: minmax(120px, .75fr) 2fr; gap: var(--irl-space-3); padding-block: var(--irl-space-2); }
+.admin-review-workspace { margin-block: var(--irl-space-8); padding: var(--irl-space-6); border-top: 4px solid var(--irl-gold); }
+.admin-review-workspace form { display: grid; gap: var(--irl-space-5); }
+.admin-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--irl-space-4); }
+.admin-review-workspace textarea { width: 100%; min-height: 130px; padding: var(--irl-space-3); border: 1px solid var(--irl-border); border-radius: var(--irl-radius-sm); background: var(--irl-surface); color: var(--irl-text); font: inherit; resize: vertical; }
+.admin-review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--irl-space-4); }
+.admin-review-actions p { margin: 0; }
 @media (max-width: 680px) {
   .admin-header { gap: var(--irl-space-4); }
   .admin-header nav { order: 3; flex-basis: 100%; }
   .admin-header .irl-button { width: auto; margin-left: auto; }
-  .admin-stats { grid-template-columns: 1fr; }
+  .admin-stats, .admin-stats--four { grid-template-columns: 1fr; }
   .admin-stats > div { display: flex; align-items: center; gap: var(--irl-space-4); }
   .admin-title { align-items: start; flex-wrap: wrap; }
   .admin-section-heading { display: grid; gap: var(--irl-space-2); }
   .admin-overview-grid, .admin-match-brief dl { grid-template-columns: 1fr; }
+  .admin-edit-grid { grid-template-columns: 1fr; }
   .admin-filters label { width: 100%; }
   .admin-answers dl > div { grid-template-columns: 1fr; gap: var(--irl-space-2); }
 }

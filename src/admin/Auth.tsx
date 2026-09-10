@@ -82,7 +82,7 @@ export function LoginPage() {
       try { await login(email, password); } catch (error) { setError((error as Error).message); }
       finally { setBusy(false); setPassword(''); }
     }}>
-      <p className="irl-eyebrow">IRL administration</p><h1>Sign in</h1><p>Review completed brand and operator profiles.</p>
+      <p className="irl-eyebrow">IRL administration</p><h1>Sign in</h1><p>Manage brand and operator applications.</p>
       <label>Email<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required maxLength={254} /></label>
       <label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required maxLength={512} /></label>
       {error && <p role="alert">{error}</p>}
@@ -96,7 +96,7 @@ export function AdminLayout() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   return <div className="admin-ui"><header className="admin-header"><Link to="/" className="admin-wordmark">IRL</Link>
-    <nav aria-label="Administration"><Link to="/admin">Submissions</Link><a href="/screening">Screening</a><a href="/rate-engine">Rate engine</a></nav>
+    <nav aria-label="Administration"><Link to="/admin">Applications</Link><a href="/screening">Screening</a><a href="/rate-engine">Rate engine</a></nav>
     <span>{user?.name}</span><button className="irl-button irl-button--secondary" disabled={busy} onClick={async () => {
       setBusy(true); setError('');
       try { await logout(); navigate('/login', { replace: true }); } catch (error) { setError((error as Error).message); }

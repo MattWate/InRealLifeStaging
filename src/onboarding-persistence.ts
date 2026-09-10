@@ -37,3 +37,9 @@ export function readDraft(flow: Flow | null): Draft {
   try { const parsed = JSON.parse(value || '{}'); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}; }
   catch { return {}; }
 }
+export function clearOnboarding(flow: Flow) {
+  localStorage.removeItem(`irl-onboarding-session-${flow}`);
+  localStorage.removeItem(`irl-draft-${flow}`);
+  if (flow === 'operator') localStorage.removeItem('irl-onboarding-session');
+  if (localStorage.getItem('irl-flow') === flow) localStorage.removeItem('irl-flow');
+}
