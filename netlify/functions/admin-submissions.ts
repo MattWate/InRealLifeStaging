@@ -30,7 +30,9 @@ export const handler = adminOnly(async event => {
   const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
   const rows = await sql`
     select s.id, s.onboarding_type as type, s.submitted_at, o.name, o.primary_email as email,
-      p.name as property_name
+      p.name as property_name, s.schema_version,
+      coalesce((select bool_or(a.review_required) from public.brand_audience_profiles a where a.onboarding_session_id = s.id), false) as audience_review_required,
+      coalesce((select bool_or(bp.legal_review_required) from public.brand_onboarding_products bp where bp.onboarding_session_id = s.id), false) as legal_review_required
     from public.onboarding_sessions s join public.organisations o on o.id = s.organisation_id
     left join public.properties p on p.id = s.property_id
     where s.status = 'submitted' and s.onboarding_type in ('brand','operator')

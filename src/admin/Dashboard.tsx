@@ -6,6 +6,7 @@ import { fieldLabels, fieldSections, sectionTitles, sectionOrder } from './quest
 type Submission = { id: string; type: 'brand' | 'operator'; name: string; email: string | null; property_name: string | null; submitted_at: string | null; schema_version?: string | null; audience_review_required?: boolean; legal_review_required?: boolean };
 type List = { submissions: Submission[]; hasMore: boolean; page: number; counts: { total: number; brands: number; operators: number } };
 type Detail = { submission: Submission; answers: { field_key: string; section_key?: string; answer_json: unknown }[] };
+type AnswerMap = Record<string, unknown>;
 const date = (value: string | null) => value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'Date unavailable';
 const human = (value: string) => value.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 function valueText(value: unknown): string {
@@ -13,6 +14,50 @@ function valueText(value: unknown): string {
   if (Array.isArray(value)) return value.map(valueText).join(', ');
   if (typeof value === 'object') return Object.entries(value).map(([key, answer]) => `${human(key)}: ${valueText(answer)}`).join('\n');
   return String(value);
+}
+const present = (value: unknown) => value != null && value !== '' && (!Array.isArray(value) || value.length > 0);
+const first = (value: unknown) => Array.isArray(value) ? value[0] : value;
+const answerMap = (answers: Detail['answers']) => Object.fromEntries(answers.map(answer => [answer.field_key, answer.answer_json]));
+const rankedFields = new Set(['decisionFactors', 'secondaryDecisionFactors', 'marketingChannelRank']);
+
+function CompactValue({ value, ranked = false }: { value: unknown; ranked?: boolean }) {
+  if (!present(value)) return <span className="admin-empty">Not provided</span>;
+  if (Array.isArray(value) && value.every(item => typeof item === 'string')) return <ol className={ranked ? 'admin-ranked' : 'admin-values'}>{value.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ol>;
+  return <>{valueText(value)}</>;
+}
+
+function BrandOverview({ answers }: { answers: AnswerMap }) {
+  const contact = [answers.firstName, answers.lastName].filter(present).join(' ');
+  const product = answers.productName;
+  const audience = answers.audienceDescription;
+  const opportunity = first(answers.irlOpportunity);
+  const facts = [
+    { label: 'Primary contact', value: contact || answers.email, detail: contact ? answers.email : answers.jobTitle },
+    { label: 'Primary product', value: product, detail: [first(answers.productCategory), first(answers.productSubcategory)].filter(present).join(' · ') },
+    { label: 'Priority audience', value: audience, detail: first(answers.audienceGeography) },
+    { label: 'Primary opportunity', value: opportunity, detail: answers.primarySuccessResult },
+  ];
+  return <section className="admin-brand-overview" aria-label="Brand review summary">
+    <div className="admin-section-heading"><div><p className="irl-eyebrow">Review summary</p><h2>Brand at a glance</h2></div><p>Key information for assessing fit before reading the full response.</p></div>
+    <div className="admin-overview-grid">{facts.map(fact => <article className="irl-card" key={fact.label}><span>{fact.label}</span><strong>{present(fact.value) ? valueText(fact.value) : 'Not provided'}</strong>{present(fact.detail) && <small>{valueText(fact.detail)}</small>}</article>)}</div>
+    <div className="irl-card admin-match-brief">
+      <h3>Initial matching brief</h3>
+      <dl>
+        <div><dt>Brand position</dt><dd><CompactValue value={[first(answers.brandDifferentiator), first(answers.brandValues)].filter(present)} /></dd></div>
+        <div><dt>Customer need</dt><dd><CompactValue value={first(answers.customerOutcome)} /></dd></div>
+        <div><dt>Primary barrier</dt><dd><CompactValue value={first(answers.primaryBarrier)} /></dd></div>
+        <div><dt>Suggested placements</dt><dd><CompactValue value={answers.brandSuggestedPlacements} /></dd></div>
+        <div><dt>Supply readiness</dt><dd><CompactValue value={first(answers.supplyCapability)} /></dd></div>
+        <div><dt>Success signals</dt><dd><CompactValue value={answers.successSignals} /></dd></div>
+      </dl>
+    </div>
+  </section>;
+}
+
+function AnswerValue({ answer }: { answer: Detail['answers'][number] }) {
+  const value = answer.answer_json;
+  if (Array.isArray(value) && value.every(item => typeof item === 'object' && item !== null)) return <div className="admin-repeatables">{value.map((item, index) => <article key={index}><strong>{human(answer.field_key.replace(/^additional/, '').replace(/s$/, ''))} {index + 1}</strong><dl>{Object.entries(item as Record<string, unknown>).filter(([, nested]) => present(nested)).map(([key, nested]) => <div key={key}><dt>{human(key)}</dt><dd><CompactValue value={nested} /></dd></div>)}</dl></article>)}</div>;
+  return <CompactValue value={value} ranked={rankedFields.has(answer.field_key)} />;
 }
 export function Dashboard() {
   const [params, setParams] = useSearchParams();
@@ -45,7 +90,7 @@ export function Dashboard() {
     {loading ? <p role="status" className="admin-state">Loading submissions…</p> : error ? <div className="admin-state"><p role="alert">{error}</p><button className="irl-button irl-button--secondary" onClick={() => setVersion(v => v + 1)}>Try again</button></div> : data && <>
       {!data.submissions.length ? <section className="irl-card admin-state"><h2>{q || type !== 'all' ? 'No matching submissions' : 'No completed forms yet'}</h2><p>{q || type !== 'all' ? 'Try another search or profile type.' : 'Brand and operator forms appear here after they are submitted successfully.'}</p></section> :
       <div className="irl-card admin-table-wrap"><table><thead><tr><th scope="col">Organisation / property</th><th scope="col">Type</th><th scope="col">Contact</th><th scope="col">Submitted</th><th scope="col">Review</th></tr></thead><tbody>{data.submissions.map(row => <tr key={row.id}>
-        <td><strong>{row.name}</strong>{row.property_name && <small>{row.property_name}</small>}</td><td><span className="irl-chip">{human(row.type)}</span></td><td>{row.email || 'Not provided'}</td><td>{date(row.submitted_at)}</td><td><Link to={`/admin/submissions/${row.id}`} aria-label={`View ${row.name} submission`}>View answers</Link></td>
+        <td><strong>{row.name}</strong>{row.property_name && <small>{row.property_name}</small>}</td><td><span className="irl-chip">{human(row.type)}</span></td><td>{row.email || 'Not provided'}</td><td>{date(row.submitted_at)}</td><td><div className="admin-table-review">{row.audience_review_required && <span className="irl-chip admin-chip--review">Audience</span>}{row.legal_review_required && <span className="irl-chip admin-chip--review">Legal</span>}<Link to={`/admin/submissions/${row.id}`} aria-label={`Review ${row.name} submission`}>Review profile</Link></div></td>
       </tr>)}</tbody></table></div>}
       <div className="admin-pagination"><button className="irl-button irl-button--secondary" disabled={page === 1} onClick={() => setParams({ type, q, page: String(page - 1) })}>Previous</button><span>Page {page}</span><button className="irl-button irl-button--secondary" disabled={!data.hasMore} onClick={() => setParams({ type, q, page: String(page + 1) })}>Next</button></div>
     </>}
@@ -68,12 +113,14 @@ export function SubmissionDetail() {
     (result[section] ||= []).push(answer); return result;
   }, {}) || {};
   const order = data ? sectionOrder[data.submission.type] : [];
+  const mappedAnswers = data ? answerMap(data.answers) : {};
   return <main className="irl-container admin-content"><Link to="/admin">← All submissions</Link>
     {error ? <div className="admin-state"><p role="alert">{error}</p><button className="irl-button irl-button--secondary" onClick={() => setVersion(v => v + 1)}>Try again</button></div> : !data ? <p role="status" className="admin-state">Loading answers…</p> : <>
       <div className="admin-title"><div><p className="irl-eyebrow">{data.submission.type} submission</p><h1>{data.submission.name}</h1><p>{[data.submission.property_name, data.submission.email].filter(Boolean).join(' · ')}</p><p className="admin-muted">Submitted {date(data.submission.submitted_at)}{data.submission.schema_version ? ` · ${data.submission.schema_version}` : ''}</p></div><div className="admin-statuses"><span className="irl-chip">Submitted</span>{data.submission.audience_review_required && <span className="irl-chip admin-chip--review">Audience review required</span>}{data.submission.legal_review_required && <span className="irl-chip admin-chip--review">Legal review required</span>}</div></div>
+      {data.submission.type === 'brand' && <BrandOverview answers={mappedAnswers} />}
       {!data.answers.length && <p className="admin-state">No questionnaire answers were recorded for this submission.</p>}
       {Object.entries(groups).sort(([a], [b]) => (order.indexOf(a) < 0 ? 99 : order.indexOf(a)) - (order.indexOf(b) < 0 ? 99 : order.indexOf(b))).map(([section, answers]) => <section className="irl-card admin-answers" key={section}>
-        <h2>{sectionTitles[data.submission.type][section] || human(section)}</h2><dl>{answers.map(answer => <div key={answer.field_key}><dt>{fieldLabels[answer.field_key] || human(answer.field_key)}</dt><dd>{valueText(answer.answer_json)}</dd></div>)}</dl>
+        <h2>{sectionTitles[data.submission.type][section] || human(section)}</h2><dl>{answers.map(answer => <div key={answer.field_key}><dt>{fieldLabels[answer.field_key] || human(answer.field_key)}</dt><dd><AnswerValue answer={answer} /></dd></div>)}</dl>
       </section>)}
     </>}
   </main>;
