@@ -74,6 +74,7 @@ test('dashboard queries only submitted sessions and parameterises searches', asy
   const result = await submissions(request, {}); assert.equal(result.statusCode, 200);
   const query = calls.find(c => c.query.includes('order by s.submitted_at'));
   assert(query.query.includes("s.status = 'submitted'")); assert(!query.query.includes('OR true --')); assert(query.values.includes('brand'));
+  assert(query.query.includes('s.schema_version')); assert(query.query.includes('audience_review_required')); assert(query.query.includes('legal_review_required'));
   assert(result.headers['cache-control'].includes('no-store'));
 });
 test('detail uses final snapshot and does not query mutable answers', async () => {
