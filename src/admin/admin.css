@@ -35,6 +35,32 @@
 .admin-answers dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .admin-statuses { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--irl-space-2); }
 .admin-chip--review { border-color: #b46c24; color: #7a4311; background: #fff4e5; }
+.admin-table-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--irl-space-2); }
+.admin-table-review .irl-chip { padding: 3px 8px; font-size: .75rem; }
+.admin-brand-overview { margin-block: var(--irl-space-8); }
+.admin-section-heading { display: flex; justify-content: space-between; align-items: end; gap: var(--irl-space-8); margin-bottom: var(--irl-space-4); }
+.admin-section-heading h2, .admin-match-brief h3 { margin: 0; }
+.admin-section-heading > p { max-width: 510px; margin: 0; color: var(--irl-text-muted); line-height: 1.55; }
+.admin-overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--irl-space-4); }
+.admin-overview-grid article { display: grid; align-content: start; gap: var(--irl-space-2); padding: var(--irl-space-5); }
+.admin-overview-grid span { color: var(--irl-text-muted); font-size: .82rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.admin-overview-grid strong { font: 500 1.25rem/1.35 var(--irl-font-display); overflow-wrap: anywhere; }
+.admin-overview-grid small { color: var(--irl-text-muted); line-height: 1.5; }
+.admin-match-brief { margin-top: var(--irl-space-4); padding: var(--irl-space-6); }
+.admin-match-brief dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--irl-space-6); margin: var(--irl-space-5) 0 0; }
+.admin-match-brief dl > div { min-width: 0; }
+.admin-match-brief dt { margin-bottom: var(--irl-space-2); color: var(--irl-text-muted); font-size: .85rem; font-weight: 700; }
+.admin-match-brief dd { margin: 0; overflow-wrap: anywhere; }
+.admin-values, .admin-ranked { display: flex; flex-wrap: wrap; gap: var(--irl-space-2); margin: 0; padding: 0; list-style: none; }
+.admin-values li { padding: 4px 9px; border: 1px solid var(--irl-border); border-radius: var(--irl-radius-pill); background: var(--irl-surface-muted); }
+.admin-ranked { display: grid; counter-reset: rank; }
+.admin-ranked li { display: grid; grid-template-columns: 24px 1fr; gap: var(--irl-space-2); align-items: start; counter-increment: rank; }
+.admin-ranked li::before { content: counter(rank); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--irl-ink); color: white; font-size: .75rem; font-weight: 700; }
+.admin-empty { color: var(--irl-text-muted); font-style: italic; }
+.admin-repeatables { display: grid; gap: var(--irl-space-3); }
+.admin-repeatables > article { padding: var(--irl-space-4); border: 1px solid var(--irl-border-light); border-radius: var(--irl-radius-sm); background: var(--irl-surface-muted); }
+.admin-repeatables article > strong { display: block; margin-bottom: var(--irl-space-3); }
+.admin-repeatables dl > div { grid-template-columns: minmax(120px, .75fr) 2fr; gap: var(--irl-space-3); padding-block: var(--irl-space-2); }
 @media (max-width: 680px) {
   .admin-header { gap: var(--irl-space-4); }
   .admin-header nav { order: 3; flex-basis: 100%; }
@@ -42,6 +68,8 @@
   .admin-stats { grid-template-columns: 1fr; }
   .admin-stats > div { display: flex; align-items: center; gap: var(--irl-space-4); }
   .admin-title { align-items: start; flex-wrap: wrap; }
+  .admin-section-heading { display: grid; gap: var(--irl-space-2); }
+  .admin-overview-grid, .admin-match-brief dl { grid-template-columns: 1fr; }
   .admin-filters label { width: 100%; }
   .admin-answers dl > div { grid-template-columns: 1fr; gap: var(--irl-space-2); }
 }
