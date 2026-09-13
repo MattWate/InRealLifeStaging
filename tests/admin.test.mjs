@@ -104,6 +104,22 @@ test('brand submission requires contact, product and accuracy confirmation', () 
   body.form.email = 'invalid'; assert.match(validateSubmission(body, 'brand'), /email/);
   assert.equal(validateSubmission({ flow: 'brand', form: {} }, 'brand'), null);
 });
+test('brand submission accepts controlled market arrays and blank optional fields', () => {
+  const form = { ...completeBrandForm(), activeMarkets: ['South Africa', 'United Kingdom'], mobile: '', brandCity: '', priceMax: '', variants: '', competitorLockouts: '', brandNeighbourhood: '', audienceNotes: '', finalNotes: '' };
+  assert.equal(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), null);
+});
+test('Other selections require their visible detail and accept it once supplied', () => {
+  const form = { ...completeBrandForm(), customerOutcome: ['Other'] };
+  assert.match(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), /Other/);
+  form.customerOutcomeOther = 'Create a more restorative evening routine';
+  assert.equal(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), null);
+});
+test('specific audience geography requires the revealed region detail', () => {
+  const form = { ...completeBrandForm(), audienceGeography: ['Specific countries or regions'] };
+  assert.match(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), /countries or regions/);
+  form.audienceGeographyDetail = 'South Africa and the United Kingdom';
+  assert.equal(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), null);
+});
 test('later brand autosaves do not modify a submitted form', async () => {
   configure(() => [{ id, organisation_id: id, status: 'submitted', submitted_at: '2026-09-02T12:00:00Z' }]);
   const result = await saveBrandOnboarding(neon(), { session_id: id, flow: 'brand', form: { brandName: 'Changed' }, submit: false });

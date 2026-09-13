@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Building2, Check, Circle, Save, Sparkles, Store } from 'lucide-react';
-import BrandOnboardingStep, { type BrandForm, validateBrandStep } from './BrandOnboarding';
+import BrandOnboardingStep, { type BrandForm, validateBrandStepFields } from './BrandOnboarding';
 import { clearOnboarding, initialFlow, readDraft, saveOnboarding, type Draft, type DraftValue } from './onboarding-persistence';
 
 type Flow = 'brand' | 'operator';
@@ -47,6 +47,7 @@ function App() {
   const [submitted, setSubmitted] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const steps = flow === 'operator' ? operatorSteps : brandSteps;
   const progress = Math.min(95, Math.round(((stepIndex + 1) / steps.length) * 100));
@@ -70,12 +71,18 @@ function App() {
     return () => { active = false; window.clearTimeout(timer); };
   }, [form, flow, submitted, submitting, current.id, progress]);
 
-  function chooseFlow(next: Flow) { window.history.replaceState(null, '', `/onboarding?flow=${next}`); setForm(readDraft(next)); setFlow(next); setStepIndex(0); setSubmitted(false); setSaveError(''); setValidationError(''); setSavedAt(''); }
+  function chooseFlow(next: Flow) { window.history.replaceState(null, '', `/onboarding?flow=${next}`); setForm(readDraft(next)); setFlow(next); setStepIndex(0); setSubmitted(false); setSaveError(''); setValidationError(''); setFieldErrors({}); setSavedAt(''); }
   async function submitProfile() {
     if (!flow || submitting) return;
     if (flow === 'brand') {
-      const missing = brandSteps.flatMap(step => validateBrandStep(step.id, form as BrandForm));
-      if (missing.length) { setValidationError(`Please complete: ${[...new Set(missing)].join(', ')}.`); return; }
+      const sections = brandSteps.map((step, index) => ({ index, errors: validateBrandStepFields(step.id, form as BrandForm) }));
+      const firstInvalid = sections.find(section => section.errors.length);
+      if (firstInvalid) {
+        setStepIndex(firstInvalid.index);
+        setFieldErrors(Object.fromEntries(firstInvalid.errors.map(error => [error.key, error.message])));
+        setValidationError('Please correct the highlighted fields before submitting your profile.');
+        return;
+      }
     }
     setSubmitting(true); setSaveError('');
     try {
@@ -89,7 +96,7 @@ function App() {
 
   const completed = useMemo(() => new Set(steps.slice(0, stepIndex).map((step) => step.id)), [steps, stepIndex]);
 
-  const update = (key: string, value: DraftValue) => { setValidationError(''); setForm((currentForm) => ({ ...currentForm, [key]: value })); };
+  const update = (key: string, value: DraftValue) => { setValidationError(''); setFieldErrors(current => { const next = { ...current }; delete next[key]; return next; }); setForm((currentForm) => ({ ...currentForm, [key]: value })); };
   const toggle = (key: string, value: string, max = 99) => {
     const currentValue = form[key];
     const existing = Array.isArray(currentValue) && currentValue.every(item => typeof item === 'string') ? currentValue as string[] : [];
@@ -100,6 +107,8 @@ function App() {
     else if (max > 1 && exclusive.includes(value)) next = [value];
     else if (existing.length < max) next = [...existing.filter(item => !exclusive.includes(item)), value];
     update(key, next);
+    if (existing.includes('Other') && !next.includes('Other')) update(`${key}Other`, '');
+    if (key === 'productScope' && !['A product range', 'Several products'].includes(value)) update('priceMax', '');
     if (key === 'marketingChannels') {
       const rank = Array.isArray(form.marketingChannelRank) ? form.marketingChannelRank as string[] : [];
       const measured = String((form.measuredAcquisitionChannel as string[] | undefined)?.[0] || '');
@@ -108,15 +117,15 @@ function App() {
   };
   function continueProfile() {
     if (flow === 'brand') {
-      const missing = validateBrandStep(current.id, form as BrandForm);
-      if (missing.length) { setValidationError(`Please complete: ${missing.join(', ')}.`); return; }
+      const missing = validateBrandStepFields(current.id, form as BrandForm);
+      if (missing.length) { setFieldErrors(Object.fromEntries(missing.map(error => [error.key, error.message]))); setValidationError('Please correct the highlighted fields to continue.'); return; }
     }
-    setValidationError('');
+    setValidationError(''); setFieldErrors({});
     setStepIndex(index => Math.min(steps.length - 1, index + 1));
   }
   function startAnotherProfile() {
     if (!flow) return;
-    clearOnboarding(flow); setForm({}); setStepIndex(0); setSubmitted(false); setSavedAt(''); setSaveError(''); setValidationError('');
+    clearOnboarding(flow); setForm({}); setStepIndex(0); setSubmitted(false); setSavedAt(''); setSaveError(''); setValidationError(''); setFieldErrors({});
   }
 
   if (!flow) {
@@ -154,7 +163,7 @@ function App() {
           <p className="profile-label">{flow === 'brand' ? 'Brand profile' : 'Operator profile'}</p>
           <nav className="step-list" aria-label="Onboarding progress">
             {steps.map((step, index) => (
-              <button key={step.id} disabled={submitting} className={index === stepIndex ? 'active' : ''} onClick={() => { setValidationError(''); setStepIndex(index); }}>
+              <button key={step.id} disabled={submitting} className={index === stepIndex ? 'active' : ''} onClick={() => { setValidationError(''); setFieldErrors({}); setStepIndex(index); }}>
                 <span className="step-icon">{completed.has(step.id) ? <Check size={14} /> : index === stepIndex ? <Circle size={12} fill="currentColor" /> : index + 1}</span>
                 <span>{step.title}</span>
               </button>
@@ -180,14 +189,14 @@ function App() {
 
           <fieldset className="question-card onboarding-fields" disabled={submitting}>
             {flow === 'brand' ? (
-              <BrandOnboardingStep step={current.id} form={form as BrandForm} update={update} toggle={toggle} />
+              <BrandOnboardingStep step={current.id} form={form as BrandForm} update={update} toggle={toggle} errors={fieldErrors} />
             ) : (
               <OperatorStep step={current.id} form={form as Record<string, string | string[]>} update={update} toggle={toggle} />
             )}
           </fieldset>
 
           <footer className="form-actions">
-            <button className="button secondary" disabled={submitting || stepIndex === 0} onClick={() => { setValidationError(''); setStepIndex((index) => Math.max(0, index - 1)); }}><ArrowLeft size={18} /> Back</button>
+            <button className="button secondary" disabled={submitting || stepIndex === 0} onClick={() => { setValidationError(''); setFieldErrors({}); setStepIndex((index) => Math.max(0, index - 1)); }}><ArrowLeft size={18} /> Back</button>
             <button className="button primary" disabled={submitting} onClick={() => { if (stepIndex === steps.length - 1) void submitProfile(); else continueProfile(); }}>{submitting ? 'Submitting…' : stepIndex === steps.length - 1 ? 'Submit profile' : 'Save and continue'} <ArrowRight size={18} /></button>
           </footer>
         </div>
