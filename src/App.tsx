@@ -189,7 +189,7 @@ function App() {
 
           <fieldset className="question-card onboarding-fields" disabled={submitting}>
             {flow === 'brand' ? (
-              <BrandOnboardingStep step={current.id} form={form as BrandForm} update={update} toggle={toggle} errors={fieldErrors} />
+              <BrandOnboardingStep step={current.id} form={form as BrandForm} update={update} toggle={toggle} errors={fieldErrors} goToStep={(step) => { const index = brandSteps.findIndex(item => item.id === step); if (index >= 0) { setValidationError(''); setFieldErrors({}); setStepIndex(index); } }} />
             ) : (
               <OperatorStep step={current.id} form={form as Record<string, string | string[]>} update={update} toggle={toggle} />
             )}

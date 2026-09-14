@@ -9,6 +9,7 @@ import { validateSubmission } from '../netlify/lib/onboarding-validation.ts';
 import { saveBrandOnboarding } from '../netlify/functions/brand-onboarding-save.ts';
 import { handler as operator } from '../netlify/functions/onboarding.ts';
 import { neon } from './sql-mock.mjs';
+import { fieldLabels, fieldSections } from '../src/admin/questionnaire.ts';
 
 process.env.APP_ORIGIN = 'https://irl.example';
 process.env.DATABASE_URL = 'test-only';
@@ -25,6 +26,16 @@ const completeBrandForm = () => ({
   customerOutcome: ['Feel good or indulge'], needContext: ['During daily routine'], currentAlternative: ['A competitor brand'], primaryBarrier: ['Awareness — they don\'t know it exists'], barrierReducers: ['Experiencing it firsthand — trying it, seeing or feeling the quality'],
   marketingChannels: ['Social media (organic)'], marketingChannelRank: ['Social media (organic)'], measuredAcquisitionChannel: ["We don't currently know"], paidMarketing: ['No, not yet'], experientialHistory: ['None of these'], irlOpportunity: ["People know us but haven't tried us"], primarySuccessResult: 'More qualified product trial', successSignals: ['Guests reached'],
   brandSuggestedPlacements: ['Kitchen or dining'], handlingRequirements: ['None'], supplyCapability: ['Yes'], profileConfirmed: 'yes',
+});
+
+test('brand journey copy keeps the existing persistence keys and sections', () => {
+  assert.equal(fieldLabels.discoveryChannels, 'Where this audience typically discovers products like yours');
+  assert.equal(fieldLabels.marketingChannels, 'Which channels does your team currently use to reach this audience?');
+  assert.equal(fieldSections.brand.discoveryChannels, 'audience');
+  assert.equal(fieldSections.brand.marketingChannels, 'value-success');
+  assert.equal(fieldSections.brand.primaryBarrier, 'need');
+  assert.equal(fieldSections.brand.irlOpportunity, 'value-success');
+  assert.equal(fieldSections.brand.primarySuccessResult, 'value-success');
 });
 
 test('salted password hashes validate only the correct password', async () => {
