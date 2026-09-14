@@ -11,7 +11,7 @@ export function saveOnboarding(form: Draft, flow: Flow, step: string, progress: 
     const session = localStorage.getItem(key) || (flow === 'operator' ? localStorage.getItem('irl-onboarding-session') : null);
     const response = await fetch(flow === 'brand' ? '/.netlify/functions/brand-onboarding' : '/.netlify/functions/onboarding', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ session_id: session, flow, current_step: step, completion_percentage: progress, schema_version: flow === 'brand' ? 'brand-onboarding-baseline-v01' : 'operator-onboarding-v01', submit, form }),
+      body: JSON.stringify({ session_id: session, flow, current_step: step, completion_percentage: progress, schema_version: flow === 'brand' ? 'brand-onboarding-v03' : 'operator-onboarding-v01', submit, form }),
     });
     const data = await response.json().catch(() => ({ error: 'Unexpected server response.' }));
     if (!response.ok || !data.session_id) throw new Error(data.error || 'Online save failed. Please try again.');

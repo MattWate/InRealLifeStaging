@@ -28,15 +28,6 @@ const completeBrandForm = () => ({
   brandSuggestedPlacements: ['Kitchen or dining'], handlingRequirements: ['None'], supplyCapability: ['Yes'], profileConfirmed: 'yes',
 });
 
-const minimalBrandForm = () => ({
-  firstName: 'A', lastName: 'B', email: 'a@example.com', onboardingRole: ['Both'],
-  brandName: 'Example', brandWebsite: 'https://example.com', brandDescription: 'A concise brand description.',
-  productScope: ['One specific product'], productName: 'Product', productCategory: ['Food & Beverage'],
-  audienceDescription: 'Busy adults who value quality.', primaryBarrier: ['Trial — they need to experience it first'],
-  irlOpportunity: ['Let people experience the product in context'], primarySuccessResult: 'Qualified product trial',
-  supplyCapability: ['Yes'], profileConfirmed: 'yes',
-});
-
 test('brand journey copy keeps the existing persistence keys and sections', () => {
   assert.equal(fieldLabels.discoveryChannels, 'Where this audience typically discovers products like yours');
   assert.equal(fieldLabels.marketingChannels, 'Which channels does your team currently use to reach this audience?');
@@ -128,24 +119,6 @@ test('brand submission accepts controlled market arrays and blank optional field
   const form = { ...completeBrandForm(), activeMarkets: ['South Africa', 'United Kingdom'], mobile: '', brandCity: '', priceMax: '', variants: '', competitorLockouts: '', brandNeighbourhood: '', audienceNotes: '', finalNotes: '' };
   assert.equal(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), null);
 });
-test('short brand baseline submits without deferred profile fields', () => {
-  const form = minimalBrandForm();
-  assert.equal(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), null);
-  for (const key of ['activeMarkets', 'marketingChannels', 'successSignals', 'jobTitle', 'brandCountry']) assert.equal(key in form, false);
-});
-test('short brand baseline treats retail price and currency as an optional pair', () => {
-  const form = { ...minimalBrandForm(), priceMin: '120' };
-  assert.match(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), /both the retail price/);
-  form.priceCurrency = 'ZAR';
-  assert.equal(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), null);
-});
-test('short brand baseline validates counterpart details only when the roles are split', () => {
-  const form = { ...minimalBrandForm(), onboardingRole: ['Day-to-day contact'] };
-  assert.match(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), /counterpart/);
-  Object.assign(form, { counterpartFirstName: 'C', counterpartLastName: 'D', counterpartEmail: 'c@example.com' });
-  assert.equal(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), null);
-});
-
 test('Other selections require their visible detail and accept it once supplied', () => {
   const form = { ...completeBrandForm(), customerOutcome: ['Other'] };
   assert.match(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), /Other/);
