@@ -115,6 +115,10 @@ test('brand submission requires contact, product and accuracy confirmation', () 
   body.form.email = 'invalid'; assert.match(validateSubmission(body, 'brand'), /email/);
   assert.equal(validateSubmission({ flow: 'brand', form: {} }, 'brand'), null);
 });
+test('brand submission rejects partnership roles that are not shown in the form', () => {
+  const form = { ...completeBrandForm(), onboardingRole: ['Neither'] };
+  assert.match(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), /valid partnership role/);
+});
 test('brand submission accepts controlled market arrays and blank optional fields', () => {
   const form = { ...completeBrandForm(), activeMarkets: ['South Africa', 'United Kingdom'], mobile: '', brandCity: '', priceMax: '', variants: '', competitorLockouts: '', brandNeighbourhood: '', audienceNotes: '', finalNotes: '' };
   assert.equal(validateSubmission({ flow: 'brand', submit: true, form }, 'brand'), null);

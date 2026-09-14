@@ -17,7 +17,7 @@ export function validateSubmission(body: unknown, flow: 'brand' | 'operator'): s
     const requiredChoices = ['onboardingRole', 'partOfGroup', 'brandPrimaryCategory', 'brandDifferentiator', 'brandValues', 'salesChannels', 'productScope', 'hasProductWebpage', 'productCategory', 'productSubcategory', 'sameProductAvailability', 'internationalShipping', 'audienceEvidence', 'audienceGeography', 'decisionFactors', 'discoveryOpenness', 'customerOutcome', 'needContext', 'currentAlternative', 'primaryBarrier', 'barrierReducers', 'marketingChannels', 'marketingChannelRank', 'measuredAcquisitionChannel', 'paidMarketing', 'experientialHistory', 'irlOpportunity', 'successSignals', 'brandSuggestedPlacements', 'handlingRequirements', 'supplyCapability'];
     if (requiredChoices.some(key => !hasChoice(answers[key]))) return 'Complete all required Brand Profile questions before submitting.';
     const role = firstChoice(answers.onboardingRole);
-    if (role === 'Neither') return 'The Brand Profile must be completed by the day-to-day contact or approver.';
+    if (!['Day-to-day contact', 'Approver', 'Both'].includes(role)) return 'Choose a valid partnership role.';
     if (['Day-to-day contact', 'Approver'].includes(role) && ['counterpartFirstName', 'counterpartLastName', 'counterpartEmail', 'counterpartJobTitle'].some(key => typeof answers[key] !== 'string' || !String(answers[key]).trim())) return 'Add the required counterpart contact before submitting.';
     if (firstChoice(answers.partOfGroup) === 'Yes' && !String(answers.parentCompany || '').trim()) return 'Add the parent company or group name.';
     if (firstChoice(answers.hasProductWebpage) === 'Yes' && !String(answers.productWebpage || '').trim()) return 'Add the product webpage.';
