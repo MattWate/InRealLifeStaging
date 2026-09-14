@@ -13,14 +13,10 @@ type Step = {
 };
 
 const brandSteps: Step[] = [
-  { id: 'team', title: 'Your team', eyebrow: 'Step 1', intro: 'Tell us who should be involved as we build your Brand Profile. This helps IRL keep the right people informed and create the most accurate property matches for your brand.' },
-  { id: 'brand', title: 'About your brand', eyebrow: 'Step 2', intro: 'Give us a clear picture of your brand so we can identify properties, guests and environments that genuinely align with it.' },
-  { id: 'product', title: 'The product or range', eyebrow: 'Step 3', intro: 'Tell us which product or range you would like IRL to consider first. This gives us a clear starting point for matching.' },
-  { id: 'audience', title: 'Who you want to reach', eyebrow: 'Step 4', intro: 'Help us understand the people for whom this product is most relevant. Complete the core questions, then add more detail only where it improves the match.' },
-  { id: 'need', title: 'Customer need and barrier', eyebrow: 'Step 5', intro: 'Understanding the need and the barrier helps IRL design a more relevant real-life experience.' },
-  { id: 'value-success', title: 'Value and success', eyebrow: 'Step 6', intro: 'Help IRL understand how you reach this audience today, where the opportunity lies and what useful evidence of success should look like.' },
-  { id: 'operations', title: 'Making it work', eyebrow: 'Step 7', intro: 'Tell us only about the practical requirements that could affect whether the product can operate successfully in a hospitality property.' },
-  { id: 'review', title: 'Review and submit', eyebrow: 'Step 8', intro: 'Review your Brand Profile, make any final edits and confirm that it is accurate before sending it to IRL.' },
+  { id: 'team', title: 'You and your brand', eyebrow: 'Step 1', intro: 'Give IRL the essentials we need to create your initial Brand Profile. This should take around three minutes.' },
+  { id: 'product', title: 'Your starting product', eyebrow: 'Step 2', intro: 'Choose one product or range as the starting point. You can add more detail later as your IRL profile grows.' },
+  { id: 'need', title: 'Audience and opportunity', eyebrow: 'Step 3', intro: 'Help us understand who the product is for, what stands in their way and what a useful IRL partnership should achieve.' },
+  { id: 'review', title: 'Review and submit', eyebrow: 'Step 4', intro: 'Check the essentials, make any final edits and send your initial Brand Profile to IRL.' },
 ];
 
 const operatorSteps: Step[] = [
@@ -153,7 +149,8 @@ function App() {
     );
   }
 
-  if (submitted) return <main className="welcome-shell"><section className="welcome-card"><div className="brand-mark">IRL</div><p className="eyebrow">Submission received</p><h1>Profile successfully submitted</h1><p>Your {flow} profile is safely stored and ready for the IRL team to review. You can now close this page.</p><div className="submission-actions"><a className="irl-button irl-button--primary" href="/">Back to IRL</a><button className="irl-button irl-button--secondary" onClick={startAnotherProfile}>Start another {flow} profile</button></div></section></main>;
+  if (submitted && flow === 'brand') return <main className="welcome-shell"><section className="welcome-card submission-summary"><div className="brand-mark">IRL</div><p className="eyebrow">Submission received</p><h1>Thanks — {String(form.brandName || 'your brand')} is now with IRL.</h1><p>Your initial Brand Profile has been submitted successfully. The IRL team will review it and contact you about the next steps.</p>{form.email && <p className="submission-contact">Contact email <strong>{String(form.email)}</strong></p>}<div className="submission-actions"><a className="irl-button irl-button--primary" href="/">Back to IRL</a></div></section></main>;
+  if (submitted) return <main className="welcome-shell"><section className="welcome-card"><div className="brand-mark">IRL</div><p className="eyebrow">Submission received</p><h1>Profile successfully submitted</h1><p>Your operator profile is safely stored and ready for the IRL team to review. You can now close this page.</p><div className="submission-actions"><a className="irl-button irl-button--primary" href="/">Back to IRL</a><button className="irl-button irl-button--secondary" onClick={startAnotherProfile}>Start another operator profile</button></div></section></main>;
 
   return (
     <div className="app-shell">

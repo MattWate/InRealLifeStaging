@@ -52,7 +52,7 @@ export async function saveBrandOnboarding(sql: any, body: BrandPayload) {
       ) values (
         ${brandName}, ${organisationSlug}, 'brand', ${nullable(form.email)},
         ${countryCode(form.brandCountry)}, ${nullable(form.brandCity)},
-        'pending', 'in_progress', ${JSON.stringify({ onboarding_schema_version: body.schema_version || 'brand-onboarding-v03' })}::jsonb
+        'pending', 'in_progress', ${JSON.stringify({ onboarding_schema_version: body.schema_version || 'brand-onboarding-baseline-v01' })}::jsonb
       ) returning id
     `;
     organisationId = organisationRows[0].id;
@@ -63,7 +63,7 @@ export async function saveBrandOnboarding(sql: any, body: BrandPayload) {
       ) values (
         ${organisationId}::uuid, 'brand', ${nullableText(body.current_step)},
         'in_progress', ${percentage(body.completion_percentage)},
-        ${body.schema_version || 'brand-onboarding-v03'}
+        ${body.schema_version || 'brand-onboarding-baseline-v01'}
       ) returning id
     `;
     sessionId = sessionRows[0].id;
@@ -95,7 +95,7 @@ export async function saveBrandOnboarding(sql: any, body: BrandPayload) {
       brand_self_perception, final_notes, confirmed_accurate, status
     ) values (
       ${organisationId}::uuid, ${nullable(form.brandWebsite)}, ${nullable(form.parentCompany)},
-      ${pgTextArray(codes(form.activeMarkets))}::text[], ${code(first(form.brandPrimaryCategory))},
+      ${pgTextArray(codes(form.activeMarkets))}::text[], ${code(first(form.brandPrimaryCategory) || first(form.productCategory))},
       ${pgTextArray(codes(form.brandSecondaryCategories))}::text[], ${nullable(form.brandDescription)},
       '{}'::text[], ${pgTextArray(codes(form.salesChannels))}::text[],
       ${pgTextArray(codes(form.marketingChannels))}::text[], ${code(first(form.irlOpportunity))},
@@ -144,7 +144,7 @@ export async function saveBrandOnboarding(sql: any, body: BrandPayload) {
       current_step = ${nullableText(body.current_step)},
       completion_percentage = case when status = 'submitted' or ${submitted} then 100 else ${percentage(body.completion_percentage)} end,
       status = case when status = 'submitted' or ${submitted} then 'submitted' else status end,
-      schema_version = ${body.schema_version || 'brand-onboarding-v03'},
+      schema_version = ${body.schema_version || 'brand-onboarding-baseline-v01'},
       submitted_at = coalesce(submitted_at, ${submitted ? new Date().toISOString() : null}::timestamptz),
       updated_at = now()
     where id = ${sessionId}::uuid
@@ -152,7 +152,7 @@ export async function saveBrandOnboarding(sql: any, body: BrandPayload) {
   if (submitted) await sql.transaction([
     finalUpdate,
     sql`insert into public.irl_submission_snapshots (session_id, answers) values (${sessionId}::uuid, ${JSON.stringify(form)}::jsonb) on conflict (session_id) do nothing`,
-    sql`insert into public.onboarding_audit_log (onboarding_session_id,organisation_id,event_type,schema_version,details) values (${sessionId}::uuid,${organisationId}::uuid,'submitted',${body.schema_version || 'brand-onboarding-v03'},'{}'::jsonb)`,
+    sql`insert into public.onboarding_audit_log (onboarding_session_id,organisation_id,event_type,schema_version,details) values (${sessionId}::uuid,${organisationId}::uuid,'submitted',${body.schema_version || 'brand-onboarding-baseline-v01'},'{}'::jsonb)`,
   ]);
   else await finalUpdate;
 
@@ -200,8 +200,8 @@ async function upsertPrimaryProduct(sql: any, organisationId: string, sessionId:
   const sameAvailability = same === 'yes' ? true : same === 'no' ? false : null;
   const marketCodes = sameAvailability === false ? codes(form.productMarkets) : codes(form.activeMarkets);
   const channelCodes = sameAvailability === false ? codes(form.productChannels) : codes(form.salesChannels);
-  const hasWebpage = booleanChoice(form.hasProductWebpage);
-  const legalReview = first(form.brandPrimaryCategory) === 'Health & Wellness' || Boolean(text(form.legalSafetyCompliance));
+  const hasWebpage = booleanChoice(form.hasProductWebpage) ?? Boolean(text(form.productWebpage));
+  const legalReview = first(form.productCategory) === 'Health & Wellness' || first(form.brandPrimaryCategory) === 'Health & Wellness' || Boolean(text(form.legalSafetyCompliance));
   if (rows.length) {
     const id = rows[0].id;
     await sql`update public.brand_onboarding_products set onboarding_session_id=${sessionId}::uuid,scope_code=${code(first(form.productScope))},name=${nullable(form.productName)},has_webpage=${hasWebpage},webpage=${hasWebpage ? nullable(form.productWebpage) : null},category_code=${code(first(form.productCategory))},subcategory_code=${code(first(form.productSubcategory))},currency_code=${code(text(form.priceCurrency))},retail_price_min=${numberOrNull(form.priceMin)},retail_price_max=${numberOrNull(form.priceMax)},variants=${nullable(form.variants)},same_brand_availability=${sameAvailability},market_codes=${pgTextArray(marketCodes)}::text[],sales_channel_codes=${pgTextArray(channelCodes)}::text[],international_shipping_code=${code(first(form.internationalShipping))},international_shipping_regions=${nullable(form.internationalShippingRegions)},legal_safety_compliance=${nullable(form.legalSafetyCompliance)},legal_review_required=${legalReview},brand_suggested_placement_codes=${pgTextArray(codes(form.brandSuggestedPlacements))}::text[],handling_requirement_codes=${pgTextArray(codes(form.handlingRequirements))}::text[],supply_capability_code=${code(first(form.supplyCapability))},initial_supply_limit=${nullable(form.initialSupplyLimit)},updated_at=now() where id=${id}::uuid`;
@@ -279,7 +279,7 @@ async function saveAnswers(sql: any, sessionId: string, form: Record<string, For
 }
 
 async function audit(sql: any, sessionId: string, organisationId: string, eventType: string, schemaVersion: string | undefined, details: unknown) {
-  await sql`insert into public.onboarding_audit_log (onboarding_session_id,organisation_id,event_type,schema_version,details) values (${sessionId}::uuid,${organisationId}::uuid,${eventType},${schemaVersion || 'brand-onboarding-v03'},${JSON.stringify(details)}::jsonb)`;
+  await sql`insert into public.onboarding_audit_log (onboarding_session_id,organisation_id,event_type,schema_version,details) values (${sessionId}::uuid,${organisationId}::uuid,${eventType},${schemaVersion || 'brand-onboarding-baseline-v01'},${JSON.stringify(details)}::jsonb)`;
 }
 
 function codes(value: FormValue | undefined) {

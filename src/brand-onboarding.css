@@ -60,3 +60,7 @@
   .review-section>header{align-items:flex-start}
   .review-answer{grid-template-columns:1fr;gap:4px;padding:13px 15px}
 }
+
+.submission-summary{max-width:660px}
+.submission-contact{margin:24px 0 0;padding:15px 17px;border-left:3px solid var(--irl-gold,#b98742);background:var(--irl-cream-light,#faf8f4)}
+.submission-contact strong{display:block;margin-top:4px;overflow-wrap:anywhere}

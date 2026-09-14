@@ -7,38 +7,43 @@ export function validateSubmission(body: unknown, flow: 'brand' | 'operator'): s
   if (payload.session_id != null && (typeof payload.session_id !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(payload.session_id))) return 'Invalid saved session.';
   if (Object.keys(form).length > 250 || Object.values(form).some(value => !validAnswer(value))) return 'Invalid answer format.';
   if (!payload.submit) return null;
+
   const answers = form as Record<string, unknown>;
-  const required = flow === 'brand' ? ['brandName', 'brandWebsite', 'brandCountry', 'brandDescription', 'firstName', 'lastName', 'email', 'jobTitle', 'productName', 'priceCurrency', 'priceMin', 'audienceDescription', 'primarySuccessResult'] : ['operatorName', 'operatorFirstName', 'operatorLastName', 'operatorEmail', 'propertyName'];
+  const required = flow === 'brand'
+    ? ['brandName', 'brandWebsite', 'brandDescription', 'firstName', 'lastName', 'email', 'productName', 'audienceDescription', 'primarySuccessResult']
+    : ['operatorName', 'operatorFirstName', 'operatorLastName', 'operatorEmail', 'propertyName'];
   if (required.some(key => typeof answers[key] !== 'string' || !String(answers[key]).trim())) return 'Add the organisation, primary contact and product or property details before submitting.';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(answers[flow === 'brand' ? 'email' : 'operatorEmail']))) return 'Enter a valid contact email before submitting.';
+
   if (flow === 'brand') {
-    if (!hasListValue(answers.activeMarkets)) return 'Add at least one active market.';
-    if (!/^[A-Z]{3}$/.test(String(answers.priceCurrency))) return 'Choose a valid three-letter currency code.';
-    const requiredChoices = ['onboardingRole', 'partOfGroup', 'brandPrimaryCategory', 'brandDifferentiator', 'brandValues', 'salesChannels', 'productScope', 'hasProductWebpage', 'productCategory', 'productSubcategory', 'sameProductAvailability', 'internationalShipping', 'audienceEvidence', 'audienceGeography', 'decisionFactors', 'discoveryOpenness', 'customerOutcome', 'needContext', 'currentAlternative', 'primaryBarrier', 'barrierReducers', 'marketingChannels', 'marketingChannelRank', 'measuredAcquisitionChannel', 'paidMarketing', 'experientialHistory', 'irlOpportunity', 'successSignals', 'brandSuggestedPlacements', 'handlingRequirements', 'supplyCapability'];
+    const requiredChoices = ['onboardingRole', 'productScope', 'productCategory', 'primaryBarrier', 'irlOpportunity', 'supplyCapability'];
     if (requiredChoices.some(key => !hasChoice(answers[key]))) return 'Complete all required Brand Profile questions before submitting.';
     const role = firstChoice(answers.onboardingRole);
     if (role === 'Neither') return 'The Brand Profile must be completed by the day-to-day contact or approver.';
-    if (['Day-to-day contact', 'Approver'].includes(role) && ['counterpartFirstName', 'counterpartLastName', 'counterpartEmail', 'counterpartJobTitle'].some(key => typeof answers[key] !== 'string' || !String(answers[key]).trim())) return 'Add the required counterpart contact before submitting.';
-    if (firstChoice(answers.partOfGroup) === 'Yes' && !String(answers.parentCompany || '').trim()) return 'Add the parent company or group name.';
-    if (firstChoice(answers.hasProductWebpage) === 'Yes' && !String(answers.productWebpage || '').trim()) return 'Add the product webpage.';
-    if (firstChoice(answers.sameProductAvailability) === 'No' && (!String(answers.productMarkets || '').trim() || !hasChoice(answers.productChannels))) return 'Add the product-specific markets and channels.';
-    if (firstChoice(answers.internationalShipping) === 'Yes, to specific regions' && !String(answers.internationalShippingRegions || '').trim()) return 'Add the international shipping regions.';
+    if (['Day-to-day contact', 'Approver'].includes(role)) {
+      if (['counterpartFirstName', 'counterpartLastName', 'counterpartEmail'].some(key => typeof answers[key] !== 'string' || !String(answers[key]).trim())) return 'Add the required counterpart contact before submitting.';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(answers.counterpartEmail))) return 'Enter a valid counterpart email before submitting.';
+    }
+
+    const validUrl = (value: unknown) => {
+      try { const url = new URL(String(value)); return url.protocol === 'http:' || url.protocol === 'https:'; }
+      catch { return false; }
+    };
+    if (!validUrl(answers.brandWebsite)) return 'Enter a complete brand website address beginning with http:// or https://.';
+    if (String(answers.productWebpage || '').trim() && !validUrl(answers.productWebpage)) return 'Enter a complete product webpage address beginning with http:// or https://.';
+    if (firstChoice(answers.productCategory) === 'Other' && !String(answers.productCategoryOther || '').trim()) return 'Add details for the product category.';
+    if (firstChoice(answers.productCategory) === 'Health & Wellness' && !String(answers.legalSafetyCompliance || '').trim()) return 'Add the required legal, safety or compliance information.';
+
+    const currency = String(answers.priceCurrency || '').trim();
+    const price = String(answers.priceMin || '').trim();
+    if ((currency || price) && (!currency || !price)) return 'Add both the retail price and its currency, or leave both blank.';
+    if (currency && !/^[A-Z]{3}$/.test(currency)) return 'Choose a valid three-letter currency code.';
+    if (price && (!Number.isFinite(Number(price)) || Number(price) < 0)) return 'Enter a valid retail price.';
+
     if (firstChoice(answers.audienceGeography) === 'Specific countries or regions' && !String(answers.audienceGeographyDetail || '').trim()) return 'Add the audience countries or regions.';
-    if (firstChoice(answers.brandPrimaryCategory) === 'Health & Wellness' && !String(answers.legalSafetyCompliance || '').trim()) return 'Add the required legal, safety or compliance information.';
-    if (choiceCount(answers.decisionFactors) !== 3) return 'Rank exactly three audience decision priorities.';
-    const channelCount = choiceCount(answers.marketingChannels);
-    if (choiceCount(answers.marketingChannelRank) !== Math.min(3, channelCount)) return 'Rank up to three of the marketing channels you use most.';
-    if (firstChoice(answers.secondaryAudienceEnabled) === 'Yes' && ['secondaryAudienceDescription', 'secondaryAudienceEvidence', 'secondaryAudienceGeography', 'secondaryDecisionFactors', 'secondaryDiscoveryOpenness'].some(key => key === 'secondaryAudienceDescription' ? !String(answers[key] || '').trim() : !hasChoice(answers[key]))) return 'Complete the required secondary audience questions or remove that audience.';
-    if (firstChoice(answers.secondaryAudienceEnabled) === 'Yes' && firstChoice(answers.secondaryAudienceGeography) === 'Specific countries or regions' && !String(answers.secondaryAudienceGeographyDetail || '').trim()) return 'Add the secondary audience countries or regions.';
-    const otherFields = ['brandPrimaryCategory', 'brandSecondaryCategories', 'salesChannels', 'productCategory', 'productSubcategory', 'productChannels', 'audienceEvidence', 'lifeStages', 'discoveryChannels', 'decisionFactors', 'customerOutcome', 'marketingChannels', 'experientialHistory', 'successSignals', 'brandSuggestedPlacements', 'handlingRequirements'];
-    for (const key of otherFields) if (includesOther(answers[key]) && !String(answers[`${key}Other`] || '').trim()) return `Add details for Other in ${key}.`;
-    const secondaryOtherFields = ['secondaryAudienceEvidence', 'secondaryLifeStages', 'secondaryDiscoveryChannels', 'secondaryDecisionFactors'];
-    for (const key of secondaryOtherFields) if (firstChoice(answers.secondaryAudienceEnabled) === 'Yes' && includesOther(answers[key]) && !String(answers[`${key}Other`] || '').trim()) return `Add details for Other in ${key}.`;
-    if (!validNestedContacts(answers.additionalContacts)) return 'Complete or remove each additional contact.';
-    if (!validNestedProducts(answers.additionalProducts)) return 'Complete or remove each additional product.';
-    const experiential = Array.isArray(answers.experientialHistory) ? answers.experientialHistory : [];
-    if (experiential.some(value => value !== 'None of these') && (!hasChoice(answers.experientialEffectiveness) || !hasChoice(answers.experientialEvidence))) return 'Complete the experiential marketing follow-up questions.';
-    if (answers.profileConfirmed !== 'yes') return 'Confirm that your Brand Profile is accurate before submitting.';
+    const legacyOtherFields = ['brandPrimaryCategory', 'brandSecondaryCategories', 'salesChannels', 'productSubcategory', 'productChannels', 'audienceEvidence', 'lifeStages', 'discoveryChannels', 'decisionFactors', 'customerOutcome', 'marketingChannels', 'experientialHistory', 'successSignals', 'brandSuggestedPlacements', 'handlingRequirements'];
+    for (const key of legacyOtherFields) if (includesOther(answers[key]) && !String(answers[key + 'Other'] || '').trim()) return 'Add details for Other in ' + key + '.';
+    if (answers.profileConfirmed !== 'yes') return 'Confirm that your initial Brand Profile is accurate before submitting.';
   }
   return null;
 }
