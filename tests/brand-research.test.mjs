@@ -6,6 +6,8 @@ import { digest } from '../netlify/lib/admin-auth.ts';
 import { validateBrandResearchDocument } from '../netlify/lib/brand-research-schema.ts';
 import { handler as importResearch } from '../netlify/functions/admin-brand-research-import.ts';
 import { handler as reviewResearch } from '../netlify/functions/admin-brand-research-review.ts';
+import { handler as manageInvitations } from '../netlify/functions/admin-brand-profile-invitations.ts';
+import { handler as confirmProfile } from '../netlify/functions/brand-profile-invitation.ts';
 import { buildResearchImportRequest, parseResearchJson } from '../src/admin/research-import.ts';
 
 process.env.APP_ORIGIN = 'https://irl.example';
@@ -232,4 +234,95 @@ test('claim review blocks edited values outside the field registry', async () =>
   const response = await reviewResearch(reviewRequest, {});
   assert.equal(response.statusCode, 422);
   assert(!calls.some(call => call.query === 'BEGIN'));
+});
+
+test('a reviewed import creates a hashed, one-time customer invitation without applying research', async () => {
+  const importId = '33333333-3333-4333-8333-333333333333';
+  const claimId = '44444444-4444-4444-8444-444444444444';
+  configure(query => {
+    if (query.includes('join public.irl_admin_users')) return [{ id: adminId, email: 'admin@example.com', name: 'Admin', role: 'admin' }];
+    if (query.startsWith('select i.id, i.organisation_id')) return [{
+      id: importId, organisation_id: organisationId, status: 'reviewed', raw_payload: valid,
+      validation_report: { admin_review: { selected_product_keys: ['product_nomu_instant_cappuccino'] } }, organisation_name: 'NOMU',
+    }];
+    if (query.startsWith('select id, entity_type')) return [{ id: claimId, entity_type: 'brand', entity_key: 'brand_nomu', field_key: 'brand.name', reviewed_value: 'NOMU', admin_decision: 'accepted', presentation_action: 'show_confirm' }];
+    if (query.startsWith('select id, name from public.brand_onboarding_products')) return [];
+    return [];
+  });
+  const response = await manageInvitations(request({ import_id: importId, recipient_name: 'Jared', recipient_email: 'jared@example.com', expiry_days: 14 }), {});
+  assert.equal(response.statusCode, 201);
+  const body = JSON.parse(response.body);
+  assert.match(body.customer_url, /^https:\/\/irl\.example\/confirm-brand\/[a-f0-9]{64}$/);
+  const rawToken = body.customer_url.split('/').at(-1);
+  const insert = calls.find(call => call.query.startsWith('insert into public.brand_profile_invitations'));
+  assert(insert.values.includes(digest(rawToken)));
+  assert(!insert.values.includes(rawToken));
+  assert(calls.some(call => call.query.startsWith('insert into public.brand_profile_field_responses')));
+  assert(!calls.some(call => call.query.startsWith('update public.organisations set name=')));
+  assert(!calls.some(call => call.query.includes('set website=') && call.query.startsWith('update public.brand_onboarding_profiles')));
+  assert.equal(calls.at(-1).query, 'COMMIT');
+});
+
+test('an unfinished research review cannot create a customer invitation', async () => {
+  const importId = '33333333-3333-4333-8333-333333333333';
+  configure(query => query.includes('join public.irl_admin_users') ? [{ id: adminId, role: 'admin' }] : []);
+  const response = await manageInvitations(request({ import_id: importId, recipient_email: 'jared@example.com' }), {});
+  assert.equal(response.statusCode, 409);
+  assert(!calls.some(call => call.query === 'BEGIN'));
+});
+
+test('the public profile endpoint validates only a token digest and never returns the raw token', async () => {
+  const customerToken = 'c'.repeat(64);
+  const invitationId = '66666666-6666-4666-8666-666666666666';
+  configure(query => {
+    if (query.startsWith('insert into public.irl_login_limits')) return [{ attempts: 1 }];
+    if (query.startsWith('select i.id, i.organisation_id')) return [{ id: invitationId, organisation_id: organisationId, organisation_name: 'NOMU', research_import_id: '33333333-3333-4333-8333-333333333333', onboarding_session_id: '77777777-7777-4777-8777-777777777777', recipient_name: 'Jared', status: 'active', expires_at: new Date(Date.now() + 86400000).toISOString() }];
+    return [];
+  });
+  const response = await confirmProfile({ httpMethod: 'GET', headers: { 'x-nf-client-connection-ip':'127.0.0.1' }, body: null, queryStringParameters: { token: customerToken } }, {});
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).brand.name, 'NOMU');
+  assert(!response.body.includes(customerToken));
+  const lookup = calls.find(call => call.query.startsWith('select i.id, i.organisation_id'));
+  assert(lookup.values.includes(digest(customerToken)));
+  assert(!lookup.values.includes(customerToken));
+  assert(calls.some(call => call.query.startsWith("update public.brand_profile_invitations set status='opened'")));
+});
+
+test('customer submission applies only confirmed and answered fields before completing the invitation', async () => {
+  const customerToken = 'd'.repeat(64);
+  const invitationId = '66666666-6666-4666-8666-666666666666';
+  const sessionId = '77777777-7777-4777-8777-777777777777';
+  const preparedId = '88888888-8888-4888-8888-888888888888';
+  const claimId = '99999999-9999-4999-8999-999999999999';
+  const invitation = { id: invitationId, organisation_id: organisationId, organisation_name: 'NOMU', research_import_id: '33333333-3333-4333-8333-333333333333', onboarding_session_id: sessionId, recipient_name: 'Jared', status: 'opened', expires_at: new Date(Date.now() + 86400000).toISOString() };
+  const stored = [{ id: preparedId, research_claim_id: claimId, entity_type: 'brand', product_id: null, field_key: 'brand.name', response_status: 'untouched', original_value: 'NOMU', submitted_value: null }];
+  configure(query => {
+    if (query.startsWith('insert into public.irl_login_limits')) return [{ attempts: 1 }];
+    if (query.startsWith('select i.id, i.organisation_id')) return [invitation];
+    if (query.startsWith('select id, research_claim_id')) return stored;
+    if (query.startsWith('select product_id as id')) return [];
+    return [];
+  });
+  const direct = [
+    ['audience.description','Health-conscious urban professionals'],
+    ['audience.evidence_source_code','customer_or_sales_data'],
+    ['audience.geography_code','primarily_south_african'],
+    ['audience.age_group_codes',['25_34']],
+    ['audience.life_stage_codes',['single_or_young_professional']],
+    ['audience.lifestyle_codes',['wellness_and_health_conscious']],
+    ['brand.sales_channel_codes',['brand_website']],
+  ].map(([field_key, submitted_value]) => ({ entity_type: String(field_key).startsWith('audience.') ? 'audience' : 'brand', product_id: null, field_key, response_status: 'answered', submitted_value }));
+  const event = {
+    httpMethod: 'POST', headers: { origin: process.env.APP_ORIGIN, 'x-nf-client-connection-ip':'127.0.0.1' },
+    queryStringParameters: { token: customerToken },
+    body: JSON.stringify({ action:'submit', responses:[{ response_id:preparedId, entity_type:'brand', product_id:null, field_key:'brand.name', response_status:'confirmed', submitted_value:'tampered' }, ...direct] }),
+  };
+  const response = await confirmProfile(event, {});
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).status, 'submitted');
+  assert(calls.some(call => call.query.startsWith('update public.organisations set name=') && call.values.includes('NOMU')));
+  assert(!calls.some(call => call.values.includes('tampered')));
+  assert(calls.some(call => call.query.startsWith("update public.brand_profile_invitations set status='submitted'")));
+  assert.equal(calls.at(-1).query, 'COMMIT');
 });

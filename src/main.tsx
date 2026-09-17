@@ -10,6 +10,7 @@ import { AuthProvider, RequireAdmin, LoginPage, AdminLayout } from './admin/Auth
 import { Dashboard, SubmissionDetail } from './admin/Dashboard';
 import { ResearchImport } from './admin/ResearchImport';
 import { ResearchReview } from './admin/ResearchReview';
+import BrandProfileConfirmation from './BrandProfileConfirmation';
 import './styles/global.css';
 import './styles.css';
 import './brand-onboarding.css';
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/onboarding/*" element={<App />} />
+      <Route path="/confirm-brand/:token" element={<BrandProfileConfirmation />} />
       <Route element={<RequireAdmin />}>
         <Route element={<AdminLayout />}>
           <Route path="/profiles/curiocity-green-point" element={<OperatorProfile />} />

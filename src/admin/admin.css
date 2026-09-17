@@ -160,6 +160,18 @@
 .admin-review-bar { position: sticky; bottom: 0; z-index: 4; display: flex; justify-content: space-between; align-items: center; gap: var(--irl-space-5); margin-top: var(--irl-space-6); padding: var(--irl-space-4) var(--irl-space-5); border: 1px solid var(--irl-border); box-shadow: var(--irl-shadow-card); background: rgba(255,255,255,.96); backdrop-filter: blur(12px); }
 .admin-review-bar > div { display: grid; }
 .admin-review-bar span { color: var(--irl-text-muted); }
+.admin-invitation-panel { display: grid; gap: var(--irl-space-5); margin-bottom: var(--irl-space-6); padding: var(--irl-space-6); border-top: 4px solid var(--irl-gold); }
+.admin-invitation-form { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--irl-space-4); }
+.admin-invitation-notes { grid-column: 1 / -1; }
+.admin-invitation-notes textarea { width: 100%; min-height: 90px; padding: var(--irl-space-3); border: 1px solid var(--irl-border); font: inherit; resize: vertical; }
+.admin-invitation-panel > .irl-button { width: max-content; }
+.admin-customer-link { padding: var(--irl-space-5); border-left: 4px solid #568365; background: #eef7f0; }
+.admin-customer-link p { margin: 6px 0 14px; color: var(--irl-text-muted); }
+.admin-customer-link > div { display: flex; gap: var(--irl-space-2); }
+.admin-customer-link input { font-family: ui-monospace,monospace; }
+.admin-customer-link button, .admin-text-button { border: 0; background: transparent; color: var(--irl-gold-dark); font-weight: 750; text-decoration: underline; cursor: pointer; }
+.admin-customer-link button { padding: 0 var(--irl-space-4); border: 1px solid var(--irl-border); background: white; text-decoration: none; }
+.admin-invitation-history h3 { margin-bottom: var(--irl-space-3); }
 @media (max-width: 680px) {
   .admin-header { gap: var(--irl-space-4); }
   .admin-header nav { order: 3; flex-basis: 100%; }
@@ -182,4 +194,8 @@
   .admin-decision-buttons { flex-wrap: wrap; }
   .admin-review-bar { align-items: stretch; flex-direction: column; }
   .admin-review-bar .irl-button { width: 100%; }
+  .admin-invitation-form { grid-template-columns: 1fr; }
+  .admin-invitation-notes { grid-column: auto; }
+  .admin-customer-link > div { align-items: stretch; flex-direction: column; }
+  .admin-customer-link button { min-height: 44px; }
 }
