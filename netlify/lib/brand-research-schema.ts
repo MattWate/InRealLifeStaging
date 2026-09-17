@@ -266,7 +266,7 @@ export function validateBrandResearchDocument(input: unknown): BrandResearchVali
     if (['research_assumption', 'data_gap'].includes(claim.research_provenance) && !claim.review_required) {
       errors.push({ code: 'review_required', path: `${path}.review_required`, message: 'Assumptions and data gaps must require review.' });
     }
-    if (claim.value !== null) validateFieldValue(claim, path, errors);
+    if (claim.value !== null) validateFieldValue(claim.field_key, claim.value, `${path}.value`, errors);
 
     if (claim.research_provenance === 'research_verified' && claim.source_ids.length === 0) {
       warnings.push({ code: 'verified_without_source', path, message: `${claim.claim_id} is verified but has no source.` });
@@ -291,44 +291,49 @@ export function validateBrandResearchDocument(input: unknown): BrandResearchVali
   return errors.length ? { success: false, errors, warnings } : { success: true, data: document, warnings };
 }
 
-function validateFieldValue(claim: BrandResearchClaim, path: string, errors: BrandResearchError[]) {
-  const rule: FieldRule = BRAND_RESEARCH_FIELD_REGISTRY[claim.field_key];
-  const value = claim.value;
-  const invalid = (message: string) => errors.push({ code: 'invalid_field_value', path: `${path}.value`, message });
+export function validateBrandResearchFieldValue(fieldKey: BrandResearchFieldKey, value: unknown) {
+  const errors: BrandResearchError[] = [];
+  validateFieldValue(fieldKey, value, 'value', errors);
+  return errors;
+}
+
+function validateFieldValue(fieldKey: BrandResearchFieldKey, value: unknown, path: string, errors: BrandResearchError[]) {
+  const rule: FieldRule = BRAND_RESEARCH_FIELD_REGISTRY[fieldKey];
+  const invalid = (message: string) => errors.push({ code: 'invalid_field_value', path, message });
 
   if (rule.kind === 'text') {
-    if (typeof value !== 'string' || !value.trim() || value.length > (rule.maxLength || 10000)) invalid(`${claim.field_key} must be non-empty text of the permitted length.`);
+    if (typeof value !== 'string' || !value.trim() || value.length > (rule.maxLength || 10000)) invalid(`${fieldKey} must be non-empty text of the permitted length.`);
     return;
   }
   if (rule.kind === 'url') {
-    if (typeof value !== 'string' || !isSafePublicUrl(value)) invalid(`${claim.field_key} must be a valid HTTPS URL.`);
+    if (typeof value !== 'string' || !isSafePublicUrl(value)) invalid(`${fieldKey} must be a valid HTTPS URL.`);
     return;
   }
   if (rule.kind === 'country') {
-    if (typeof value !== 'string' || !ISO_CODE.test(value)) invalid(`${claim.field_key} must be a two-letter uppercase ISO country code.`);
+    if (typeof value !== 'string' || !ISO_CODE.test(value)) invalid(`${fieldKey} must be a two-letter uppercase ISO country code.`);
     return;
   }
   if (rule.kind === 'currency') {
-    if (typeof value !== 'string' || !CURRENCY_CODE.test(value)) invalid(`${claim.field_key} must be a three-letter uppercase ISO currency code.`);
+    if (typeof value !== 'string' || !CURRENCY_CODE.test(value)) invalid(`${fieldKey} must be a three-letter uppercase ISO currency code.`);
     return;
   }
   if (rule.kind === 'number') {
-    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) invalid(`${claim.field_key} must be a number greater than or equal to zero.`);
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) invalid(`${fieldKey} must be a number greater than or equal to zero.`);
     return;
   }
   if (rule.kind === 'code') {
-    if (typeof value !== 'string' || !CODE.test(value) || (rule.allowed && !rule.allowed.includes(value))) invalid(`${claim.field_key} contains an unsupported code.`);
+    if (typeof value !== 'string' || !CODE.test(value) || (rule.allowed && !rule.allowed.includes(value))) invalid(`${fieldKey} contains an unsupported code.`);
     return;
   }
   if (!Array.isArray(value) || value.some(item => typeof item !== 'string') || new Set(value).size !== value.length) {
-    invalid(`${claim.field_key} must be an array of unique codes.`);
+    invalid(`${fieldKey} must be an array of unique codes.`);
     return;
   }
-  if (rule.maxItems && value.length > rule.maxItems) invalid(`${claim.field_key} allows at most ${rule.maxItems} values.`);
+  if (rule.maxItems && value.length > rule.maxItems) invalid(`${fieldKey} allows at most ${rule.maxItems} values.`);
   if (rule.kind === 'markets') {
-    if (value.some(item => !ISO_CODE.test(item) && !REGION_CODES.has(item))) invalid(`${claim.field_key} contains an unsupported market code.`);
+    if (value.some(item => !ISO_CODE.test(item) && !REGION_CODES.has(item))) invalid(`${fieldKey} contains an unsupported market code.`);
   } else if (value.some(item => !CODE.test(item) || (rule.allowed && !rule.allowed.includes(item)))) {
-    invalid(`${claim.field_key} contains an unsupported code.`);
+    invalid(`${fieldKey} contains an unsupported code.`);
   }
 }
 

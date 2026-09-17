@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adminFetch } from './Auth';
 import { buildResearchImportRequest, MAX_RESEARCH_IMPORT_BYTES, parseResearchJson, type ResearchTargetMode } from './research-import';
+import { RecentResearchImports } from './ResearchReview';
 
 type Brand = { id: string; name: string; country_code: string | null; website: string | null };
 type Issue = { code?: string; path?: string; message: string };
@@ -95,7 +96,7 @@ export function ResearchImport() {
         <div><dt>Products</dt><dd>{result.counts.products}</dd></div>
         <div><dt>Warnings</dt><dd>{result.counts.warnings}</dd></div>
       </dl>
-      <div className="admin-import-actions"><button className="irl-button irl-button--primary" onClick={() => { setJson(''); setFileName(''); setResult(null); setPreview(null); setMessage(''); }}>Import another profile</button><Link className="irl-button irl-button--secondary" to="/admin">Back to applications</Link></div>
+      <div className="admin-import-actions"><Link className="irl-button irl-button--primary" to={`/admin/research/${result.import_id}`}>Review research claims</Link><button className="irl-button irl-button--secondary" onClick={() => { setJson(''); setFileName(''); setResult(null); setPreview(null); setMessage(''); }}>Import another profile</button></div>
     </section>
   </main>;
 
@@ -103,6 +104,7 @@ export function ResearchImport() {
     <div className="admin-title"><div><p className="irl-eyebrow">Research-assisted onboarding</p><h1>Import brand research</h1><p className="admin-muted">Validate a profile prepared from the IRL research contract, then store it for review before anything is shown to the brand.</p></div></div>
 
     <div className="admin-import-layout">
+      <RecentResearchImports />
       <section className="irl-card admin-import-card">
         <div className="admin-import-step"><span>1</span><div><h2>Choose the brand record</h2><p>Link the research deliberately. IRL will never guess based on a similar name.</p></div></div>
         <div className="admin-mode-options" role="group" aria-label="Brand record choice">

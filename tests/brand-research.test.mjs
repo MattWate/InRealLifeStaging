@@ -5,6 +5,7 @@ import { configure, calls } from './sql-mock.mjs';
 import { digest } from '../netlify/lib/admin-auth.ts';
 import { validateBrandResearchDocument } from '../netlify/lib/brand-research-schema.ts';
 import { handler as importResearch } from '../netlify/functions/admin-brand-research-import.ts';
+import { handler as reviewResearch } from '../netlify/functions/admin-brand-research-review.ts';
 import { buildResearchImportRequest, parseResearchJson } from '../src/admin/research-import.ts';
 
 process.env.APP_ORIGIN = 'https://irl.example';
@@ -183,4 +184,52 @@ test('a failed claim write does not report a successful import', async () => {
   } finally {
     console.error = previous;
   }
+});
+
+test('claim review accepts, edits and rejects research without updating canonical profiles', async () => {
+  const importId = '33333333-3333-4333-8333-333333333333';
+  const claimA = '44444444-4444-4444-8444-444444444444';
+  const claimB = '55555555-5555-4555-8555-555555555555';
+  const payload = { ...valid, products: valid.products };
+  configure(query => {
+    if (query.includes('join public.irl_admin_users')) return [{ id: adminId, email: 'admin@example.com', name: 'Admin', role: 'admin' }];
+    if (query.startsWith('select id, organisation_id, raw_payload')) return [{ id: importId, organisation_id: organisationId, raw_payload: payload, validation_report: { valid: true, warnings: [] } }];
+    if (query.startsWith('select id, field_key')) return [
+      { id: claimA, field_key: 'brand.website', proposed_value: 'https://nomu.co.za', research_provenance: 'research_verified', admin_decision: 'pending', reviewed_value: null },
+      { id: claimB, field_key: 'brand.positioning_tier_code', proposed_value: 'mass_premium', research_provenance: 'research_assumption', admin_decision: 'pending', reviewed_value: null },
+    ];
+    return [];
+  });
+  const reviewRequest = request({
+    import_id: importId,
+    selected_product_keys: ['product_nomu_instant_cappuccino'],
+    claims: [
+      { claim_id: claimA, decision: 'accepted' },
+      { claim_id: claimB, decision: 'edited', reviewed_value: 'premium' },
+    ],
+  });
+  reviewRequest.httpMethod = 'PATCH';
+  const response = await reviewResearch(reviewRequest, {});
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).status, 'reviewed');
+  assert.equal(calls.filter(call => call.query.startsWith('update public.brand_research_claims')).length, 2);
+  assert(calls.some(call => call.query.startsWith('update public.brand_research_imports')));
+  assert.equal(calls.at(-1).query, 'COMMIT');
+  assert(!calls.some(call => /brand_onboarding_profiles|brand_onboarding_products/.test(call.query) && call.query.startsWith('update')));
+});
+
+test('claim review blocks edited values outside the field registry', async () => {
+  const importId = '33333333-3333-4333-8333-333333333333';
+  const claimId = '55555555-5555-4555-8555-555555555555';
+  configure(query => {
+    if (query.includes('join public.irl_admin_users')) return [{ id: adminId, role: 'admin' }];
+    if (query.startsWith('select id, organisation_id, raw_payload')) return [{ id: importId, organisation_id: organisationId, raw_payload: valid, validation_report: {} }];
+    if (query.startsWith('select id, field_key')) return [{ id: claimId, field_key: 'brand.positioning_tier_code', proposed_value: 'mass_premium', research_provenance: 'research_assumption', admin_decision: 'pending', reviewed_value: null }];
+    return [];
+  });
+  const reviewRequest = request({ import_id: importId, selected_product_keys: ['product_nomu_instant_cappuccino'], claims: [{ claim_id: claimId, decision: 'edited', reviewed_value: 'ultra_exclusive' }] });
+  reviewRequest.httpMethod = 'PATCH';
+  const response = await reviewResearch(reviewRequest, {});
+  assert.equal(response.statusCode, 422);
+  assert(!calls.some(call => call.query === 'BEGIN'));
 });
