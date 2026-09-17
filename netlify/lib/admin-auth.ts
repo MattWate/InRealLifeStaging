@@ -45,13 +45,20 @@ export async function currentAdmin(event: HandlerEvent) {
   return rows[0] || null;
 }
 export function adminOnly(handler: Handler): Handler {
+  return adminOnlyWithUser(async (event, context) => handler(event, context));
+}
+
+export function adminOnlyWithUser(
+  handler: (event: HandlerEvent, context: Parameters<Handler>[1], admin: { id: string; email: string; name: string; role: string }) => Promise<any>,
+): Handler {
   return async (event, context) => {
     try {
       if (!['GET', 'HEAD'].includes(event.httpMethod) && !sameOrigin(event)) {
         return reply(403, { error: 'Request origin is not allowed.' });
       }
-      if (!await currentAdmin(event)) return reply(401, { error: 'Please sign in with an IRL administrator account.' });
-      const response = await handler(event, context);
+      const admin = await currentAdmin(event) as { id: string; email: string; name: string; role: string } | null;
+      if (!admin) return reply(401, { error: 'Please sign in with an IRL administrator account.' });
+      const response = await handler(event, context, admin);
       return response || reply(500, { error: 'The admin request did not return a response.' });
     } catch (error) {
       console.error('Admin request failed', error);

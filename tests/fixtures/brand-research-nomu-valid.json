@@ -1,0 +1,125 @@
+{
+  "schema_version": "irl-brand-research-v1",
+  "generated_at": "2026-09-15T12:00:00Z",
+  "generator": {
+    "name": "IRL Brand Profile Research Engine",
+    "version": "v06"
+  },
+  "profile_context": {
+    "purpose": "opportunity_confirmation",
+    "notes": "Beverage products for an active IRL opportunity"
+  },
+  "brand": {
+    "external_key": "brand_nomu",
+    "reference_name": "NOMU",
+    "match_hints": {
+      "website": "https://nomu.co.za",
+      "country_code": "ZA"
+    }
+  },
+  "products": [
+    {
+      "external_key": "product_nomu_instant_cappuccino",
+      "reference_name": "NOMU Instant Cappuccino",
+      "suggest_for_opportunity": true
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim_brand_name",
+      "entity_type": "brand",
+      "entity_key": "brand_nomu",
+      "field_key": "brand.name",
+      "value": "NOMU",
+      "research_provenance": "research_verified",
+      "confidence": "high",
+      "presentation_action": "show_confirm",
+      "review_required": false,
+      "source_ids": ["source_nomu_site"],
+      "rationale": "Name used on the official brand website."
+    },
+    {
+      "claim_id": "claim_brand_website",
+      "entity_type": "brand",
+      "entity_key": "brand_nomu",
+      "field_key": "brand.website",
+      "value": "https://nomu.co.za",
+      "research_provenance": "research_verified",
+      "confidence": "high",
+      "presentation_action": "show_confirm",
+      "review_required": false,
+      "source_ids": ["source_nomu_site"],
+      "rationale": "Official brand website."
+    },
+    {
+      "claim_id": "claim_brand_positioning",
+      "entity_type": "brand",
+      "entity_key": "brand_nomu",
+      "field_key": "brand.positioning_tier_code",
+      "value": "mass_premium",
+      "research_provenance": "research_assumption",
+      "confidence": "medium",
+      "presentation_action": "show_confirm",
+      "review_required": true,
+      "source_ids": ["source_nomu_site"],
+      "rationale": "Premium pricing with broad retail distribution."
+    },
+    {
+      "claim_id": "claim_cappuccino_name",
+      "entity_type": "product",
+      "entity_key": "product_nomu_instant_cappuccino",
+      "field_key": "product.name",
+      "value": "NOMU Instant Cappuccino",
+      "research_provenance": "research_verified",
+      "confidence": "high",
+      "presentation_action": "show_confirm",
+      "review_required": false,
+      "source_ids": ["source_cappuccino_page"],
+      "rationale": "Official product name."
+    },
+    {
+      "claim_id": "claim_cappuccino_category",
+      "entity_type": "product",
+      "entity_key": "product_nomu_instant_cappuccino",
+      "field_key": "product.category_code",
+      "value": "food_and_beverage",
+      "research_provenance": "research_verified",
+      "confidence": "high",
+      "presentation_action": "show_confirm",
+      "review_required": false,
+      "source_ids": ["source_cappuccino_page"],
+      "rationale": "The product is an instant coffee beverage."
+    },
+    {
+      "claim_id": "claim_priority_audience_gap",
+      "entity_type": "brand",
+      "entity_key": "brand_nomu",
+      "field_key": "audience.description",
+      "value": null,
+      "research_provenance": "data_gap",
+      "confidence": "unknown",
+      "presentation_action": "ask",
+      "review_required": true,
+      "source_ids": [],
+      "rationale": "The priority audience must be supplied directly by the brand."
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "source_nomu_site",
+      "source_type": "official_website",
+      "title": "NOMU official website",
+      "publisher": "NOMU",
+      "url": "https://nomu.co.za",
+      "accessed_at": "2026-09-15T00:00:00Z"
+    },
+    {
+      "source_id": "source_cappuccino_page",
+      "source_type": "official_product_page",
+      "title": "NOMU Instant Cappuccino",
+      "publisher": "NOMU",
+      "url": "https://nomu.co.za/products/instant-cappuccino",
+      "accessed_at": "2026-09-15T00:00:00Z"
+    }
+  ]
+}
