@@ -8,6 +8,7 @@ import Screening from './Screening';
 import RateEngine from './RateEngine';
 import { AuthProvider, RequireAdmin, LoginPage, AdminLayout } from './admin/Auth';
 import { Dashboard, SubmissionDetail } from './admin/Dashboard';
+import { ResearchImport } from './admin/ResearchImport';
 import './styles/global.css';
 import './styles.css';
 import './brand-onboarding.css';
@@ -23,6 +24,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route element={<AdminLayout />}>
           <Route path="/profiles/curiocity-green-point" element={<OperatorProfile />} />
           <Route path="/admin" element={<Dashboard />} />
+          <Route path="/admin/research" element={<ResearchImport />} />
           <Route path="/admin/submissions/:id" element={<SubmissionDetail />} />
           <Route path="/screening/*" element={<Screening />} />
           <Route path="/rate-engine/*" element={<RateEngine />} />

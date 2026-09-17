@@ -5,6 +5,7 @@ import { configure, calls } from './sql-mock.mjs';
 import { digest } from '../netlify/lib/admin-auth.ts';
 import { validateBrandResearchDocument } from '../netlify/lib/brand-research-schema.ts';
 import { handler as importResearch } from '../netlify/functions/admin-brand-research-import.ts';
+import { buildResearchImportRequest, parseResearchJson } from '../src/admin/research-import.ts';
 
 process.env.APP_ORIGIN = 'https://irl.example';
 process.env.DATABASE_URL = 'test-only';
@@ -74,6 +75,53 @@ test('research imports require an authenticated same-origin admin request', asyn
   const crossOrigin = request({ organisation_id: organisationId, research: valid }, 'https://evil.example');
   assert.equal((await importResearch(crossOrigin, {})).statusCode, 403);
   assert.equal(calls.length, 0);
+});
+
+test('the admin brand picker returns only parameterised brand search results', async () => {
+  configure(query => query.includes('join public.irl_admin_users')
+    ? [{ id: adminId, email: 'admin@example.com', name: 'Admin', role: 'admin' }]
+    : query.includes("o.organisation_type = 'brand'")
+      ? [{ id: organisationId, name: 'NOMU', country_code: 'ZA', website: 'https://nomu.co.za' }]
+      : []);
+  const get = {
+    httpMethod: 'GET',
+    headers: { cookie: `__Host-irl_admin=${token}` },
+    body: null,
+    queryStringParameters: { q: "%' OR true --" },
+  };
+  const response = await importResearch(get, {});
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).brands[0].name, 'NOMU');
+  const query = calls.find(call => call.query.includes("o.organisation_type = 'brand'"));
+  assert(!query.query.includes('OR true --'));
+  assert(query.values.some(value => String(value).includes('OR true --')));
+});
+
+test('validate-only preview reports conflicts without opening a write transaction', async () => {
+  configure(query => {
+    if (query.includes('join public.irl_admin_users')) return [{ id: adminId, email: 'admin@example.com', name: 'Admin', role: 'admin' }];
+    if (query.startsWith('select o.id')) return [{ id: organisationId, name: 'Different brand', organisation_type: 'brand', country_code: 'GB', website: 'https://different.example' }];
+    return [];
+  });
+  const response = await importResearch(request({ organisation_id: organisationId, validate_only: true, research: valid }), {});
+  assert.equal(response.statusCode, 200);
+  const body = JSON.parse(response.body);
+  assert.equal(body.valid, true);
+  assert.equal(body.summary.brand_name, 'NOMU');
+  assert(body.warnings.some(warning => warning.code === 'organisation_name_conflict'));
+  assert(!calls.some(call => call.query === 'BEGIN'));
+  assert(!calls.some(call => call.query.startsWith('insert into')));
+});
+
+test('admin import helpers parse uploads and require an explicit target', () => {
+  assert.deepEqual(parseResearchJson(JSON.stringify({ example: true })), { example: true });
+  assert.throws(() => parseResearchJson('{not json'), /not valid JSON/);
+  assert.throws(() => buildResearchImportRequest(valid, 'existing', '', true), /Select the existing brand/);
+  assert.deepEqual(buildResearchImportRequest(valid, 'new', '', true), {
+    create_organisation: true,
+    validate_only: true,
+    research: valid,
+  });
 });
 
 test('invalid research is rejected before any import write begins', async () => {

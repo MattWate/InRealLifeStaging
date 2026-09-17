@@ -79,6 +79,49 @@
 .admin-review-workspace textarea { width: 100%; min-height: 130px; padding: var(--irl-space-3); border: 1px solid var(--irl-border); border-radius: var(--irl-radius-sm); background: var(--irl-surface); color: var(--irl-text); font: inherit; resize: vertical; }
 .admin-review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--irl-space-4); }
 .admin-review-actions p { margin: 0; }
+.admin-import-layout { display: grid; gap: var(--irl-space-6); }
+.admin-import-card { padding: var(--irl-space-6); }
+.admin-import-step { display: grid; grid-template-columns: 40px 1fr; gap: var(--irl-space-4); align-items: start; margin-bottom: var(--irl-space-5); }
+.admin-import-step > span { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--irl-ink); color: white; font-weight: 800; }
+.admin-import-step h2, .admin-import-step p { margin: 0; }
+.admin-import-step p { margin-top: var(--irl-space-2); color: var(--irl-text-muted); line-height: 1.55; }
+.admin-mode-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--irl-space-3); }
+.admin-mode-options button { display: grid; gap: var(--irl-space-2); min-height: 100px; padding: var(--irl-space-4); border: 1px solid var(--irl-border); border-radius: var(--irl-radius-sm); background: var(--irl-surface); color: var(--irl-text); text-align: left; cursor: pointer; }
+.admin-mode-options button:hover, .admin-mode-options button.active { border-color: var(--irl-gold); background: var(--irl-surface-muted); }
+.admin-mode-options button.active { box-shadow: inset 0 0 0 1px var(--irl-gold); }
+.admin-mode-options small { color: var(--irl-text-muted); line-height: 1.45; }
+.admin-brand-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--irl-space-4); margin-top: var(--irl-space-5); }
+.admin-brand-picker > p { grid-column: 1 / -1; margin: 0; }
+.admin-new-brand-note { margin-top: var(--irl-space-5); padding: var(--irl-space-4); border-left: 3px solid var(--irl-gold); background: var(--irl-surface-muted); }
+.admin-new-brand-note p { margin: var(--irl-space-2) 0 0; color: var(--irl-text-muted); line-height: 1.5; }
+.admin-file-picker { padding: var(--irl-space-5); border: 1px dashed var(--irl-border); background: var(--irl-surface-muted); }
+.admin-file-picker input { min-height: auto; padding: var(--irl-space-2) 0 0; border: 0; background: transparent; }
+.admin-file-picker small { color: var(--irl-text-muted); font-weight: 400; }
+.admin-json-divider { display: flex; align-items: center; gap: var(--irl-space-3); margin-block: var(--irl-space-4); color: var(--irl-text-muted); font-size: .85rem; }
+.admin-json-divider::before, .admin-json-divider::after { content: ''; height: 1px; flex: 1; background: var(--irl-border-light); }
+.admin-json-input { width: 100%; min-height: 320px; padding: var(--irl-space-4); border: 1px solid var(--irl-border); border-radius: var(--irl-radius-sm); background: #fbfaf7; color: var(--irl-text); font: .9rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; resize: vertical; tab-size: 2; }
+.admin-import-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--irl-space-4); margin-top: var(--irl-space-5); }
+.admin-import-feedback { padding: var(--irl-space-5); border-left: 4px solid #568365; }
+.admin-import-feedback.has-errors { border-left-color: #a6493d; }
+.admin-import-feedback h2, .admin-import-feedback p { margin-top: 0; }
+.admin-import-feedback ul, .admin-warning-list ul { display: grid; gap: var(--irl-space-3); margin: var(--irl-space-4) 0 0; padding: 0; list-style: none; }
+.admin-import-feedback li, .admin-warning-list li { display: grid; gap: 4px; padding: var(--irl-space-3); border: 1px solid var(--irl-border-light); border-radius: var(--irl-radius-sm); background: var(--irl-surface-muted); }
+.admin-import-feedback li span, .admin-warning-list li span { color: var(--irl-text-muted); line-height: 1.45; }
+.admin-import-summary { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: var(--irl-space-3); }
+.admin-import-summary > div { display: grid; gap: var(--irl-space-2); padding: var(--irl-space-4); border: 1px solid var(--irl-border-light); border-radius: var(--irl-radius-sm); background: var(--irl-surface-muted); }
+.admin-import-summary span { color: var(--irl-text-muted); font-size: .8rem; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+.admin-import-summary strong { font-size: 1.15rem; overflow-wrap: anywhere; }
+.admin-warning-list { margin-top: var(--irl-space-6); }
+.admin-warning-list h3 { margin-bottom: 0; }
+.admin-import-confirm { display: flex; justify-content: space-between; align-items: center; gap: var(--irl-space-6); margin-top: var(--irl-space-6); padding-top: var(--irl-space-5); border-top: 1px solid var(--irl-border-light); }
+.admin-import-confirm p { max-width: 680px; margin: 0; line-height: 1.55; }
+.admin-import-success { max-width: 800px; margin: var(--irl-space-8) auto; padding: var(--irl-space-8); border-top: 4px solid #568365; }
+.admin-import-success h1 { max-width: 650px; }
+.admin-import-success > p { line-height: 1.6; }
+.admin-import-success dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--irl-space-3); margin-block: var(--irl-space-6); }
+.admin-import-success dl > div { padding: var(--irl-space-4); border: 1px solid var(--irl-border-light); background: var(--irl-surface-muted); }
+.admin-import-success dt { color: var(--irl-text-muted); font-size: .8rem; font-weight: 700; text-transform: uppercase; }
+.admin-import-success dd { margin: var(--irl-space-2) 0 0; overflow-wrap: anywhere; }
 @media (max-width: 680px) {
   .admin-header { gap: var(--irl-space-4); }
   .admin-header nav { order: 3; flex-basis: 100%; }
@@ -91,4 +134,7 @@
   .admin-edit-grid { grid-template-columns: 1fr; }
   .admin-filters label { width: 100%; }
   .admin-answers dl > div { grid-template-columns: 1fr; gap: var(--irl-space-2); }
+  .admin-mode-options, .admin-brand-picker, .admin-import-summary, .admin-import-success dl { grid-template-columns: 1fr; }
+  .admin-import-confirm { align-items: stretch; flex-direction: column; }
+  .admin-import-confirm .irl-button { width: 100%; }
 }

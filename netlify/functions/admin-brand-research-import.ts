@@ -13,6 +13,7 @@ const MAX_IMPORT_BYTES = 1024 * 1024;
 const requestSchema = z.object({
   organisation_id: z.string().uuid().optional(),
   create_organisation: z.boolean().optional().default(false),
+  validate_only: z.boolean().optional().default(false),
   research: z.unknown(),
 }).strict().superRefine((request, context) => {
   if (!Object.prototype.hasOwnProperty.call(request, 'research')) {
@@ -30,6 +31,7 @@ const requestSchema = z.object({
 type ImportRequest = {
   organisation_id?: string;
   create_organisation: boolean;
+  validate_only: boolean;
   research: unknown;
 };
 type ExistingOrganisation = {
@@ -41,7 +43,22 @@ type ExistingOrganisation = {
 };
 
 export const handler: Handler = adminOnlyWithUser(async (event, _context, admin) => {
-  if (event.httpMethod !== 'POST') return reply(405, { error: 'Method not allowed.' }, { Allow: 'POST' });
+  if (event.httpMethod === 'GET') {
+    const q = (event.queryStringParameters?.q || '').trim().slice(0, 150);
+    const pattern = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+    const sql = database();
+    const rows = await sql`
+      select o.id, o.name, o.country_code, p.website
+      from public.organisations o
+      left join public.brand_onboarding_profiles p on p.organisation_id = o.id
+      where o.organisation_type = 'brand'
+        and (${q} = '' or o.name ilike ${pattern} or p.website ilike ${pattern})
+      order by o.name asc, o.id asc
+      limit 101
+    `;
+    return reply(200, { brands: rows.slice(0, 100), has_more: rows.length > 100 });
+  }
+  if (event.httpMethod !== 'POST') return reply(405, { error: 'Method not allowed.' }, { Allow: 'GET, POST' });
   if (Buffer.byteLength(event.body || '', 'utf8') > MAX_IMPORT_BYTES) {
     return reply(413, { error: 'The research import exceeds the 1 MB limit.' });
   }
@@ -72,13 +89,42 @@ export const handler: Handler = adminOnlyWithUser(async (event, _context, admin)
 
   const sql = database();
   try {
-    const result = await importBrandResearch(sql, admin.id, request.data as ImportRequest, validation.data, validation.warnings);
+    const parsedRequest = request.data as ImportRequest;
+    if (parsedRequest.validate_only) {
+      const preview = await previewBrandResearch(sql, parsedRequest, validation.data, validation.warnings);
+      return reply(200, preview);
+    }
+    const result = await importBrandResearch(sql, admin.id, parsedRequest, validation.data, validation.warnings);
     return reply(201, result);
   } catch (error) {
     if (error instanceof ImportConflictError) return reply(error.statusCode, { error: error.message });
     throw error;
   }
 });
+
+export async function previewBrandResearch(
+  sql: any,
+  request: ImportRequest,
+  document: BrandResearchDocument,
+  initialWarnings: BrandResearchWarning[] = [],
+) {
+  const warnings = [...initialWarnings];
+  if (request.organisation_id) {
+    const organisation = await loadOrganisation(sql, request.organisation_id);
+    warnings.push(...organisationWarnings(organisation, document));
+  }
+  return {
+    ok: true,
+    valid: true,
+    summary: {
+      brand_name: document.brand.reference_name,
+      products: document.products.length,
+      claims: document.claims.length,
+      sources: document.sources.length,
+    },
+    warnings,
+  };
+}
 
 export async function importBrandResearch(
   sql: any,
@@ -92,16 +138,7 @@ export async function importBrandResearch(
   const warnings = [...initialWarnings];
 
   if (request.organisation_id) {
-    const rows = await sql`
-      select o.id, o.name, o.organisation_type, o.country_code, p.website
-      from public.organisations o
-      left join public.brand_onboarding_profiles p on p.organisation_id = o.id
-      where o.id = ${request.organisation_id}::uuid
-      limit 1
-    `;
-    organisation = rows[0] || null;
-    if (!organisation) throw new ImportConflictError(404, 'The selected organisation could not be found.');
-    if (organisation.organisation_type !== 'brand') throw new ImportConflictError(409, 'Research can only be imported into a brand organisation.');
+    organisation = await loadOrganisation(sql, request.organisation_id);
     organisationId = organisation.id;
     warnings.push(...organisationWarnings(organisation, document));
   }
@@ -191,6 +228,20 @@ export async function importBrandResearch(
     },
     warnings,
   };
+}
+
+async function loadOrganisation(sql: any, organisationId: string): Promise<ExistingOrganisation> {
+  const rows = await sql`
+    select o.id, o.name, o.organisation_type, o.country_code, p.website
+    from public.organisations o
+    left join public.brand_onboarding_profiles p on p.organisation_id = o.id
+    where o.id = ${organisationId}::uuid
+    limit 1
+  `;
+  const organisation = rows[0] || null;
+  if (!organisation) throw new ImportConflictError(404, 'The selected organisation could not be found.');
+  if (organisation.organisation_type !== 'brand') throw new ImportConflictError(409, 'Research can only be imported into a brand organisation.');
+  return organisation;
 }
 
 function organisationWarnings(organisation: ExistingOrganisation, document: BrandResearchDocument) {
