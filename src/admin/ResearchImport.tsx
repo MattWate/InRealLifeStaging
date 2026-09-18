@@ -81,6 +81,9 @@ export function ResearchImport() {
       }
     } catch (error) {
       setMessage((error as Error).message);
+      window.setTimeout(() => {
+        document.querySelector('.admin-import-feedback')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 0);
     } finally { setBusy(false); }
   }
 

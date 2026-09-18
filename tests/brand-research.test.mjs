@@ -151,6 +151,8 @@ test('a valid import is stored transactionally without changing canonical profil
   assert.equal(calls[0].values[0], digest(token));
   assert(calls.some(call => call.query.startsWith('insert into public.brand_research_imports')));
   assert.equal(calls.filter(call => call.query.startsWith('insert into public.brand_research_claims')).length, valid.claims.length);
+  const dataGapInsert = calls.find(call => call.query.startsWith('insert into public.brand_research_claims') && call.values[5] === 'audience.description');
+  assert.equal(dataGapInsert.values[6], null, 'data gaps must use SQL NULL rather than the JSON null value');
   assert.equal(calls.at(-1).query, 'COMMIT');
   assert(!calls.some(call => /(?:insert into|update) public\.brand_onboarding_(?:profiles|products)/.test(call.query)));
   assert(!calls.some(call => call.query.startsWith('update public.organisations')));

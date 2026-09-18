@@ -197,7 +197,7 @@ export async function importBrandResearch(
       ${claim.entity_type},
       ${claim.entity_key},
       ${claim.field_key},
-      ${JSON.stringify(claim.value)}::jsonb,
+      ${claim.value === null ? null : JSON.stringify(claim.value)}::jsonb,
       ${claim.research_provenance},
       ${claim.confidence},
       ${claim.presentation_action},
