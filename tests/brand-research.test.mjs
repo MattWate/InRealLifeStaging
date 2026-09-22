@@ -328,3 +328,28 @@ test('customer submission applies only confirmed and answered fields before comp
   assert(calls.some(call => call.query.startsWith("update public.brand_profile_invitations set status='submitted'")));
   assert.equal(calls.at(-1).query, 'COMMIT');
 });
+
+test('a repeated customer save updates direct answers instead of inserting duplicates', async () => {
+  const customerToken = 'e'.repeat(64);
+  const invitationId = '66666666-6666-4666-8666-666666666666';
+  const sessionId = '77777777-7777-4777-8777-777777777777';
+  const responseId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const invitation = { id: invitationId, organisation_id: organisationId, organisation_name: 'NOMU', research_import_id: '33333333-3333-4333-8333-333333333333', onboarding_session_id: sessionId, recipient_name: 'Jared', status: 'opened', expires_at: new Date(Date.now() + 86400000).toISOString() };
+  const stored = [{ id: responseId, research_claim_id: null, entity_type: 'audience', product_id: null, field_key: 'audience.description', response_status: 'answered', original_value: null, submitted_value: 'Previous description' }];
+  configure(query => {
+    if (query.startsWith('insert into public.irl_login_limits')) return [{ attempts: 1 }];
+    if (query.startsWith('select i.id, i.organisation_id')) return [invitation];
+    if (query.startsWith('select id, research_claim_id')) return stored;
+    if (query.startsWith('select product_id as id')) return [];
+    return [];
+  });
+  const event = {
+    httpMethod: 'POST', headers: { origin: process.env.APP_ORIGIN, 'x-nf-client-connection-ip':'127.0.0.1' },
+    queryStringParameters: { token: customerToken },
+    body: JSON.stringify({ action:'save', responses:[{ entity_type:'audience', product_id:null, field_key:'audience.description', response_status:'answered', submitted_value:'Updated description' }] }),
+  };
+  const response = await confirmProfile(event, {});
+  assert.equal(response.statusCode, 200);
+  assert(calls.some(call => call.query.startsWith('update public.brand_profile_field_responses') && call.values.includes(responseId)));
+  assert(!calls.some(call => call.query.startsWith('insert into public.brand_profile_field_responses')));
+});

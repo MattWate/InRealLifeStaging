@@ -138,9 +138,10 @@ async function saveResponses(sql: any, invitation: Invitation, request: z.infer<
   const problems: Array<{ path: string; message: string }> = [];
 
   request.responses.forEach((answer, index) => {
-    const existing = answer.response_id ? byId.get(answer.response_id) : undefined;
     const fieldKey = answer.field_key as BrandResearchFieldKey;
     const productId = answer.product_id || null;
+    const key = responseKey({ entity_type: answer.entity_type, field_key: fieldKey, product_id: productId });
+    const existing = answer.response_id ? byId.get(answer.response_id) : final.get(key);
     if (existing && (existing.field_key !== fieldKey || existing.entity_type !== answer.entity_type || existing.product_id !== productId)) {
       problems.push({ path: `responses.${index}`, message: 'This response does not match the prepared profile.' }); return;
     }
@@ -162,7 +163,7 @@ async function saveResponses(sql: any, invitation: Invitation, request: z.infer<
       entity_type: answer.entity_type, product_id: productId, field_key: fieldKey,
       response_status: answer.response_status, original_value: existing?.original_value ?? null, submitted_value: value,
     };
-    final.set(responseKey(row), row);
+    final.set(key, row);
     if (existing) tasks.push(sql`
       update public.brand_profile_field_responses set response_status=${row.response_status},
         submitted_value=${value == null ? null : JSON.stringify(value)}::jsonb, updated_at=now()
