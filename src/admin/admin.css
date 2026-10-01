@@ -94,6 +94,16 @@
 .admin-brand-picker > p { grid-column: 1 / -1; margin: 0; }
 .admin-new-brand-note { margin-top: var(--irl-space-5); padding: var(--irl-space-4); border-left: 3px solid var(--irl-gold); background: var(--irl-surface-muted); }
 .admin-new-brand-note p { margin: var(--irl-space-2) 0 0; color: var(--irl-text-muted); line-height: 1.5; }
+.admin-research-generator { padding: var(--irl-space-5); border: 1px solid var(--irl-border-light); border-radius: var(--irl-radius-sm); background: var(--irl-surface-muted); }
+.admin-research-generator .admin-section-heading { margin-bottom: var(--irl-space-4); }
+.admin-research-generator .admin-section-heading > div { display: grid; gap: var(--irl-space-2); }
+.admin-research-generator .admin-section-heading p { margin: 0; line-height: 1.5; }
+.admin-generator-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: var(--irl-space-4); }
+.admin-generator-fields label > small { color: var(--irl-text-muted); font-weight: 400; }
+.admin-generator-fields textarea { width: 100%; min-height: 96px; padding: var(--irl-space-3); border: 1px solid var(--irl-border); border-radius: var(--irl-radius-sm); background: var(--irl-surface); color: var(--irl-text); font: inherit; resize: vertical; }
+.admin-generation-result { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--irl-space-2); margin-top: var(--irl-space-4); padding: var(--irl-space-3); border-left: 3px solid #568365; background: #eef7f0; }
+.admin-generation-result.has-errors { border-left-color: #a6493d; background: #fff0ed; }
+.admin-generation-result span { color: var(--irl-text-muted); }
 .admin-file-picker { padding: var(--irl-space-5); border: 1px dashed var(--irl-border); background: var(--irl-surface-muted); }
 .admin-file-picker input { min-height: auto; padding: var(--irl-space-2) 0 0; border: 0; background: transparent; }
 .admin-file-picker small { color: var(--irl-text-muted); font-weight: 400; }
@@ -184,7 +194,7 @@
   .admin-edit-grid { grid-template-columns: 1fr; }
   .admin-filters label { width: 100%; }
   .admin-answers dl > div { grid-template-columns: 1fr; gap: var(--irl-space-2); }
-  .admin-mode-options, .admin-brand-picker, .admin-import-summary, .admin-import-success dl { grid-template-columns: 1fr; }
+  .admin-mode-options, .admin-brand-picker, .admin-import-summary, .admin-import-success dl, .admin-generator-fields { grid-template-columns: 1fr; }
   .admin-import-confirm { align-items: stretch; flex-direction: column; }
   .admin-import-confirm .irl-button { width: 100%; }
   .admin-review-progress { grid-template-columns: 1fr; }

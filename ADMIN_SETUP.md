@@ -16,6 +16,14 @@
    The script prompts twice for a hidden password of at least 12 characters. It creates the individual administrator or resets an existing account, and revokes their existing sessions. Passwords never appear in command arguments, logs or the browser bundle.
 5. Deploy `main` and visit `/login`. Sign in using the email and password you entered in Neon. `/admin` is the completed-submissions dashboard. No public registration is provided. An entry in an unrelated `users` table will not grant access: this login uses `public.irl_admin_users` with `role = 'admin'` and `active = true`.
 
+## Gemini-assisted brand research
+
+The research screen at `/admin/research` can create an editable `irl-brand-research-v1` draft from a public brand website. Add `GEMINI_API_KEY` as a **server-side** Netlify environment variable, scoped to Functions and production. Never use a `VITE_` prefix and never paste the key into the browser UI or commit it to the repository.
+
+The optional `GEMINI_MODEL` variable overrides the default `gemini-3.8-flash` model. The model must support the Interactions API, URL Context, Google Search grounding and structured output together. No database migration is needed for generation: a generated draft still passes through the existing validation, import and claim-review workflow before it can be used to create a customer confirmation link.
+
+After changing either variable, trigger a new production deploy so the Functions runtime receives it. A missing key produces the admin message “Gemini research has not been configured yet”; an invalid or unsupported key/model produces a non-sensitive configuration error without returning the key to the browser.
+
 For local development run Netlify Dev with `APP_ORIGIN=http://localhost:8888`, using a **test database**. Vite alone does not serve Netlify functions. `npm run build` uses the existing Netlify build path; `npm test` requires Node 24 (the deployed functions still target Node 20).
 
 ## Behaviour

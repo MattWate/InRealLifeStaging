@@ -18,6 +18,7 @@ type ImportResult = {
   status: string;
   counts: { products: number; claims: number; sources: number; warnings: number };
 };
+type GenerationResult = { model: string; website: string; citations: string[]; valid: boolean };
 
 export function ResearchImport() {
   const [mode, setMode] = useState<ResearchTargetMode>('existing');
@@ -27,6 +28,10 @@ export function ResearchImport() {
   const [selectedBrand, setSelectedBrand] = useState('');
   const [json, setJson] = useState('');
   const [fileName, setFileName] = useState('');
+  const [website, setWebsite] = useState('');
+  const [researchNotes, setResearchNotes] = useState('');
+  const [generation, setGeneration] = useState<GenerationResult | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -54,6 +59,34 @@ export function ResearchImport() {
 
   function resetValidation() {
     setPreview(null); setResult(null); setIssues([]); setMessage('');
+  }
+
+  async function generateFromWebsite() {
+    setGenerating(true); setPreview(null); setResult(null); setIssues([]); setMessage(''); setGeneration(null);
+    try {
+      const response = await fetch('/.netlify/functions/admin-brand-research-generate', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ website, notes: researchNotes }),
+      });
+      const body = await response.json().catch(() => ({ error: 'The server returned an unexpected response.' }));
+      if (!response.ok) {
+        if (response.status === 401) window.dispatchEvent(new Event('irl-session-expired'));
+        setIssues(body.details || []);
+        throw new Error(body.error || 'Unable to research this brand.');
+      }
+      setJson(JSON.stringify(body.research, null, 2));
+      setFileName('');
+      setIssues(body.validation?.valid ? [] : body.validation?.errors || []);
+      setGeneration({ model: body.model, website: body.website, citations: body.citations || [], valid: Boolean(body.validation?.valid) });
+      setMessage(body.validation?.valid
+        ? 'Gemini created a contract-valid draft. Inspect it, choose the correct brand record, then validate before importing.'
+        : 'Gemini created a draft, but contract validation found issues. The JSON is available below for correction.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally { setGenerating(false); }
   }
 
   async function submit(validateOnly: boolean) {
@@ -104,7 +137,7 @@ export function ResearchImport() {
   </main>;
 
   return <main className="irl-container admin-content">
-    <div className="admin-title"><div><p className="irl-eyebrow">Research-assisted onboarding</p><h1>Import brand research</h1><p className="admin-muted">Validate a profile prepared from the IRL research contract, then store it for review before anything is shown to the brand.</p></div></div>
+    <div className="admin-title"><div><p className="irl-eyebrow">Research-assisted onboarding</p><h1>Research brands</h1><p className="admin-muted">Generate or add a contract-based profile, then validate and review it before anything is shown to the brand.</p></div></div>
 
     <div className="admin-import-layout">
       <RecentResearchImports />
@@ -122,11 +155,21 @@ export function ResearchImport() {
       </section>
 
       <section className="irl-card admin-import-card">
-        <div className="admin-import-step"><span>2</span><div><h2>Add the research JSON</h2><p>Upload Jared’s AI output or paste it below. Only the locked v1 contract is accepted.</p></div></div>
+        <div className="admin-import-step"><span>2</span><div><h2>Create or add the research draft</h2><p>Research a public brand website with Gemini, or upload an existing contract document. Every draft must still pass IRL validation and admin review.</p></div></div>
+        <div className="admin-research-generator">
+          <div className="admin-section-heading"><div><h3>Generate from a brand website</h3><p className="admin-muted">Gemini reads the supplied URL and may search for supporting public sources. It cannot import or change live profile data.</p></div></div>
+          <div className="admin-generator-fields">
+            <label>Brand website<input type="url" inputMode="url" value={website} onChange={event => setWebsite(event.target.value)} placeholder="https://example.com" maxLength={2048} /></label>
+            <label>Opportunity notes <small>Optional</small><textarea value={researchNotes} onChange={event => setResearchNotes(event.target.value)} placeholder="Products or opportunity context to prioritise…" maxLength={3000} /></label>
+          </div>
+          <div className="admin-import-actions"><button type="button" className="irl-button irl-button--primary" disabled={generating || !website.trim()} onClick={() => void generateFromWebsite()}>{generating ? 'Researching brand…' : 'Research brand'}</button><span className="admin-muted">This can take up to a minute. Keep this page open.</span></div>
+          {generation && <div className={`admin-generation-result ${generation.valid ? '' : 'has-errors'}`}><strong>{generation.valid ? 'Draft ready' : 'Draft needs correction'}</strong><span>{generation.model} · {generation.citations.length} cited URL{generation.citations.length === 1 ? '' : 's'}</span></div>}
+        </div>
+        <div className="admin-json-divider"><span>or upload existing research</span></div>
         <label className="admin-file-picker">Choose JSON file<input type="file" accept="application/json,.json" onChange={async event => {
           const file = event.target.files?.[0];
           if (!file) return;
-          resetValidation(); setFileName(file.name);
+          resetValidation(); setGeneration(null); setFileName(file.name);
           if (file.size > MAX_RESEARCH_IMPORT_BYTES) { setJson(''); setMessage('The research JSON exceeds the 1 MB limit.'); return; }
           try { setJson(await file.text()); } catch { setMessage('The selected file could not be read.'); }
         }} /><small>{fileName || 'Maximum file size: 1 MB'}</small></label>
