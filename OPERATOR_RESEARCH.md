@@ -20,9 +20,9 @@ Jared generates hotel research externally. IRL **does not scrape hotel websites*
 
 ## Status and next slice
 
-The V1 screen supports import, validation, a read-only evidence profile and recent-import history. It intentionally does not send invitations, modify the canonical property, or approve claims yet.
+The V1 screen supports import, validation, evidence profile, field-level admin acceptance/correction/rejection, and recent-import history. It intentionally does not send invitations or modify canonical property data. Review decisions are retained separately from original research claims.
 
-Next: add Jared's claim approval/editing actions, explicit property matching (rather than speculative auto-merge), and selective operator verification/augmentation invitations. Reconcile operator-confirmed data after review.
+Next: add explicit property matching (rather than speculative auto-merge), and selective operator verification/augmentation invitations. Reconcile operator-confirmed data after review.
 
 ## Data safety
 
