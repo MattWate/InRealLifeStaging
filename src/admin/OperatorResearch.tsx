@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { adminFetch } from './Auth';
 
 type ImportSummary = { id: string; property_name: string; property_city?: string; status: string; created_at: string };
-type Claim = { id: string; entity_type: string; entity_key: string; field_key: string; proposed_value: unknown; research_provenance: string; confidence: string; presentation_action: string; rationale: string; source_ids: string[] };
+type Claim = { id: string; entity_type: string; entity_key: string; field_key: string; proposed_value: unknown; reviewed_value?: unknown; admin_decision: 'pending'|'accepted'|'edited'|'rejected'; research_provenance: string; confidence: string; presentation_action: string; rationale: string; source_ids: string[] };
 type Source = { source_key: string; title: string; url: string };
 type ImportDetail = { research_import: { property_name: string; property_city?: string; property_website?: string; created_at: string; status: string }; claims: Claim[]; sources: Source[] };
 
@@ -68,8 +68,46 @@ export function OperatorResearchDetail() {
     <Link to="/admin/operator-research">← All operator research</Link>
     <div className="admin-page-heading"><div><p className="irl-eyebrow">Research draft · {data.research_import.status}</p><h1>{data.research_import.property_name}</h1><p>{data.research_import.property_city} · {data.research_import.property_website || 'Website not provided'}</p></div></div>
     <p>This is an evidence review of externally gathered material. It is not yet an approved or operator-confirmed property record.</p>
-    {groups.map(group => <section key={group} style={{marginTop:28}}><h2 style={{textTransform:'capitalize'}}>{group === 'zone' ? 'Experience zones' : group}</h2><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:12}}>{data.claims.filter(c=>c.entity_type===group).map(claim=><article className="irl-card" key={claim.id} style={{padding:18}}><small>{claim.entity_key} · {claim.field_key.split('.').slice(1).join(' ')}</small><h3 style={{overflowWrap:'anywhere'}}>{displayValue(claim.proposed_value)}</h3><p>{claim.rationale}</p><p><strong>{claim.research_provenance.replaceAll('_',' ')}</strong> · {claim.confidence} confidence · {claim.presentation_action.replaceAll('_',' ')}</p>{claim.source_ids.map(sourceId=>{const source=sources.get(sourceId);return source?<p key={sourceId}><a href={source.url} target="_blank" rel="noopener noreferrer">Source: {source.title}</a></p>:null;})}</article>)}</div></section>)}
+    {groups.map(group => <section key={group} style={{marginTop:28}}><h2 style={{textTransform:'capitalize'}}>{group === 'zone' ? 'Experience zones' : group}</h2><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:12}}>{data.claims.filter(c=>c.entity_type===group).map(claim=><ClaimCard key={claim.id} claim={claim} sources={sources} />)}</div></section>)}
   </main>;
 }
 
 function displayValue(value: unknown) { return value == null ? 'Information needed' : Array.isArray(value) ? value.join(', ') : String(value); }
+
+function ClaimCard({claim,sources}:{claim:Claim;sources:Map<string,Source>}) {
+  const [decision,setDecision] = useState(claim.admin_decision);
+  const [input,setInput] = useState(displayValue(claim.reviewed_value ?? claim.proposed_value));
+  const [busy,setBusy] = useState(false);
+  const [error,setError] = useState('');
+  async function review(next:Claim['admin_decision']) {
+    setBusy(true); setError('');
+    try {
+      const proposed = claim.proposed_value;
+      const reviewed_value = next === 'edited' ? Array.isArray(proposed) ? input.split(',').map(v=>v.trim()).filter(Boolean) : typeof proposed === 'number' ? Number(input) : input : undefined;
+      const response = await fetch('/.netlify/functions/admin-operator-research-import', {
+        method:'PATCH',credentials:'same-origin',cache:'no-store',headers:{'content-type':'application/json'},
+        body:JSON.stringify({claim_id:claim.id,decision:next,...(next==='edited'?{reviewed_value}:{})}),
+      });
+      const body=await response.json();
+      if(!response.ok) throw new Error(body.error||'Unable to save review.');
+      setDecision(next);
+    } catch(e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+  return <article className="irl-card" style={{padding:18}}>
+    <small>{claim.entity_key} · {claim.field_key.split('.').slice(1).join(' ')}</small>
+    <h3 style={{overflowWrap:'anywhere'}}>{displayValue(claim.proposed_value)}</h3>
+    <p>{claim.rationale}</p>
+    <p><strong>{claim.research_provenance.replaceAll('_',' ')}</strong> · {claim.confidence} confidence · {claim.presentation_action.replaceAll('_',' ')}</p>
+    {claim.source_ids.map(sourceId=>{const source=sources.get(sourceId);return source?<p key={sourceId}><a href={source.url} target="_blank" rel="noopener noreferrer">Source: {source.title}</a></p>:null;})}
+    <p><strong>Jared's review:</strong> {decision}</p>
+    <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+      <button className="irl-button irl-button--secondary" disabled={busy} onClick={()=>void review('accepted')}>Accept</button>
+      <button className="irl-button irl-button--secondary" disabled={busy} onClick={()=>void review('rejected')}>Reject</button>
+      <button className="irl-button irl-button--secondary" disabled={busy} onClick={()=>void review('pending')}>Pending</button>
+    </div>
+    <label>Correction (lists separated by commas)<textarea value={input} onChange={event=>setInput(event.target.value)} rows={2} style={{width:'100%'}} /></label>
+    <button className="irl-button irl-button--primary" disabled={busy || !input.trim()} onClick={()=>void review('edited')}>Save correction</button>
+    {error && <p role="alert">{error}</p>}
+  </article>;
+}
