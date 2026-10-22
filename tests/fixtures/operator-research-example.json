@@ -1,0 +1,39 @@
+{
+  "schema_version": "irl-operator-research-v1",
+  "generated_at": "2026-10-22T12:00:00Z",
+  "generator": { "name": "External hotel research tool", "version": "1" },
+  "property": {
+    "external_key": "example_boutique_hotel",
+    "reference_name": "Example Boutique Hotel (fictional)",
+    "match_hints": { "website": "https://example.com", "city": "Cape Town", "country_code": "ZA" }
+  },
+  "rooms": [{ "external_key": "standard_room", "reference_name": "Standard room" }],
+  "spaces": [{ "external_key": "guest_lounge", "reference_name": "Guest lounge" }],
+  "audiences": [{ "external_key": "leisure_guest", "reference_name": "Leisure guests" }],
+  "zones": [{ "external_key": "living_social", "reference_name": "Living & Social" }],
+  "sources": [{
+    "source_id": "official_site", "source_type": "official_website",
+    "title": "Example website", "url": "https://example.com",
+    "accessed_at": "2026-10-22T12:00:00Z"
+  }],
+  "claims": [
+    {
+      "claim_id": "property_name", "entity_type": "property", "entity_key": "example_boutique_hotel",
+      "field_key": "property.name", "value": "Example Boutique Hotel (fictional)",
+      "research_provenance": "research_verified", "confidence": "high", "presentation_action": "show_confirm",
+      "review_required": false, "source_ids": ["official_site"], "rationale": "Illustrative example of an official property name claim."
+    },
+    {
+      "claim_id": "lounge_amenities", "entity_type": "space", "entity_key": "guest_lounge",
+      "field_key": "space.amenities", "value": ["Seating", "Coffee station"],
+      "research_provenance": "research_assumption", "confidence": "low", "presentation_action": "show_confirm",
+      "review_required": true, "source_ids": [], "rationale": "Example of an interpretation needing review, not a verified fact."
+    },
+    {
+      "claim_id": "guest_geography", "entity_type": "audience", "entity_key": "leisure_guest",
+      "field_key": "audience.geography", "value": null,
+      "research_provenance": "data_gap", "confidence": "unknown", "presentation_action": "ask",
+      "review_required": true, "source_ids": [], "rationale": "Guest origin data should come from the operator."
+    }
+  ]
+}
