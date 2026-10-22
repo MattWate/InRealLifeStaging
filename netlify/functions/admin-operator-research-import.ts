@@ -45,20 +45,23 @@ export const handler: Handler = adminOnlyWithUser(async (event, _context, admin)
     if (!found.length) return reply(404, { error: 'Selected property does not exist.' });
   }
   // Imports remain separate from canonical property data until an admin review.
-  // One SQL transaction ensures that claims and sources never appear partially.
-  const results = await sql.transaction([
-    sql`insert into public.operator_research_imports (property_id, property_name, property_website, property_city, property_country_code, schema_version, generated_at, generator, raw_payload, created_by_admin_user_id)
-      values (${request.data.property_id || null}, ${document.property.reference_name}, ${document.property.match_hints.website || null}, ${document.property.match_hints.city || null}, ${document.property.match_hints.country_code || null}, ${document.schema_version}, ${document.generated_at}, ${JSON.stringify(document.generator)}::jsonb, ${JSON.stringify(document)}::jsonb, ${admin.id}) returning id`,
-  ]);
-  const importId = results[0][0].id as string;
+  const inserted = await sql`insert into public.operator_research_imports (property_id, property_name, property_website, property_city, property_country_code, schema_version, generated_at, generator, raw_payload, created_by_admin_user_id)
+    values (${request.data.property_id || null}, ${document.property.reference_name}, ${document.property.match_hints.website || null}, ${document.property.match_hints.city || null}, ${document.property.match_hints.country_code || null}, ${document.schema_version}, ${document.generated_at}, ${JSON.stringify(document.generator)}::jsonb, ${JSON.stringify(document)}::jsonb, ${admin.id}) returning id`;
+  const importId = inserted[0].id as string;
   // Child inserts are idempotent for an import ID and can safely be retried if a function fails.
   try {
-    await Promise.all([
-      ...document.claims.map(claim => sql`insert into public.operator_research_claims (import_id, claim_key, entity_type, entity_key, field_key, proposed_value, research_provenance, confidence, presentation_action, review_required, source_ids, rationale)
-        values (${importId}, ${claim.claim_id}, ${claim.entity_type}, ${claim.entity_key}, ${claim.field_key}, ${JSON.stringify(claim.value)}::jsonb, ${claim.research_provenance}, ${claim.confidence}, ${claim.presentation_action}, ${claim.review_required}, ${claim.source_ids}, ${claim.rationale}) on conflict (import_id, claim_key) do nothing`),
-      ...document.sources.map(source => sql`insert into public.operator_research_sources (import_id, source_key, source_type, title, url, accessed_at)
-        values (${importId}, ${source.source_id}, ${source.source_type}, ${source.title}, ${source.url}, ${source.accessed_at}) on conflict (import_id, source_key) do nothing`),
-    ]);
+    await sql`insert into public.operator_research_claims (import_id, claim_key, entity_type, entity_key, field_key, proposed_value, research_provenance, confidence, presentation_action, review_required, source_ids, rationale)
+      select ${importId}, c.claim_id, c.entity_type, c.entity_key, c.field_key, c.value, c.research_provenance, c.confidence, c.presentation_action, c.review_required, c.source_ids, c.rationale
+      from jsonb_to_recordset(${JSON.stringify(document.claims)}::jsonb) as c(
+        claim_id text, entity_type text, entity_key text, field_key text, value jsonb,
+        research_provenance text, confidence text, presentation_action text,
+        review_required boolean, source_ids text[], rationale text
+      )`;
+    await sql`insert into public.operator_research_sources (import_id, source_key, source_type, title, url, accessed_at)
+      select ${importId}, s.source_id, s.source_type, s.title, s.url, s.accessed_at
+      from jsonb_to_recordset(${JSON.stringify(document.sources)}::jsonb) as s(
+        source_id text, source_type text, title text, url text, accessed_at timestamptz
+      )`;
   } catch (error) {
     // Do not leave a seemingly usable partial import behind.
     await sql`delete from public.operator_research_imports where id=${importId}`;
