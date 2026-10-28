@@ -96,7 +96,7 @@ export function AdminLayout() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   return <div className="admin-ui"><header className="admin-header"><Link to="/" className="admin-wordmark">IRL</Link>
-    <nav aria-label="Administration"><Link to="/admin">Applications</Link><Link to="/admin/research">Brand research</Link><Link to="/admin/operator-research">Property research</Link><a href="/screening">Screening</a><a href="/rate-engine">Rate engine</a></nav>
+    <nav aria-label="Administration"><Link to="/admin">Dashboard</Link><Link to="/admin/brands">Brands</Link><Link to="/admin/properties">Properties</Link><Link to="/admin/research">Brand research</Link><Link to="/admin/operator-research">Property research</Link><a href="/screening">Screening</a><a href="/rate-engine">Rate engine</a></nav>
     <span>{user?.name}</span><button className="irl-button irl-button--secondary" disabled={busy} onClick={async () => {
       setBusy(true); setError('');
       try { await logout(); navigate('/login', { replace: true }); } catch (error) { setError((error as Error).message); }
