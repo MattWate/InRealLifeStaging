@@ -12,6 +12,7 @@ import { ResearchImport } from './admin/ResearchImport';
 import { ResearchReview } from './admin/ResearchReview';
 import { OperatorResearch, OperatorResearchDetail } from './admin/OperatorResearch';
 import BrandProfileConfirmation from './BrandProfileConfirmation';
+import { IntelligenceDirectory, IntelligenceProfile } from './admin/IntelligenceProfiles';
 import './styles/global.css';
 import './styles.css';
 import './brand-onboarding.css';
@@ -32,6 +33,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/admin/research/:id" element={<ResearchReview />} />
           <Route path="/admin/operator-research" element={<OperatorResearch />} />
           <Route path="/admin/operator-research/:id" element={<OperatorResearchDetail />} />
+          <Route path="/admin/brands" element={<IntelligenceDirectory kind="brand" />} />
+          <Route path="/admin/brands/:id" element={<IntelligenceProfile kind="brand" />} />
+          <Route path="/admin/properties" element={<IntelligenceDirectory kind="property" />} />
+          <Route path="/admin/properties/:id" element={<IntelligenceProfile kind="property" />} />
           <Route path="/admin/submissions/:id" element={<SubmissionDetail />} />
           <Route path="/screening/*" element={<Screening />} />
           <Route path="/rate-engine/*" element={<RateEngine />} />
