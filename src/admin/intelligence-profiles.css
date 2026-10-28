@@ -1,0 +1,57 @@
+.intelligence-page { padding-block: 42px 90px; }
+.intelligence-back { display: inline-flex; align-items: center; gap: 8px; color: var(--irl-ink-soft); font-size: .9rem; margin-bottom: 28px; }
+.intelligence-directory-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 30px; }
+.intelligence-directory-heading h1,.intelligence-hero h1 { font: 500 clamp(2.7rem,5vw,5rem)/1.08 var(--irl-font-display); margin: 10px 0 14px; }
+.intelligence-directory-heading p { color: var(--irl-text-muted); max-width: 650px; }
+.intelligence-directory-heading .irl-button,.intelligence-hero-actions .irl-button { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; }
+.intelligence-search { display: flex !important; align-items: center; gap: 12px; border: 1px solid var(--irl-border); border-radius: 8px; background: white; max-width: 540px; padding: 0 16px; margin-bottom: 24px; }
+.intelligence-search input { border: 0; min-width: 0; background: transparent; }
+.intelligence-directory-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
+.intelligence-list-card { display: flex; flex-direction: column; text-decoration: none; background: #fff; border: 1px solid var(--irl-border-light); border-radius: 12px; padding: 28px; min-height: 260px; transition: box-shadow .18s ease, transform .18s ease; }
+.intelligence-list-card:hover { box-shadow: var(--irl-shadow-card); transform: translateY(-3px); }
+.intelligence-card-symbol { display: grid; place-items: center; width: 45px; height: 45px; border-radius: 12px; color: var(--irl-gold-dark); background: var(--irl-cream); margin-bottom: 22px; }
+.intelligence-card-category { font-size: .72rem; text-transform: uppercase; letter-spacing: .14em; color: var(--irl-gold-dark); font-weight: 800; }
+.intelligence-list-card h2 { font: 500 1.8rem/1.2 var(--irl-font-display); margin: 9px 0; }
+.intelligence-list-card p { color: var(--irl-text-muted); margin: 0; }
+.intelligence-list-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: auto; padding-top: 30px; font-size: .8rem; color: var(--irl-text-muted); }
+.intelligence-footnote { font-size: .8rem; color: var(--irl-text-muted); margin-top: 25px; }
+.intelligence-empty { padding: 40px; }
+.intelligence-profile { background: var(--irl-cream-light); min-height: 100vh; }
+.intelligence-profile-shell { padding-block: 34px 100px; }
+.intelligence-hero { display: grid; grid-template-columns: 1.6fr 1fr; gap: 30px; padding: clamp(30px,5vw,70px); background: var(--irl-ink); color: var(--irl-cream-light); border-radius: 16px; overflow: hidden; }
+.intelligence-hero .irl-eyebrow { color: var(--irl-gold); }
+.intelligence-hero h1 { color: #fff; overflow-wrap: anywhere; }
+.intelligence-hero p { color: #c8d0d4; }
+.intelligence-location { display: flex; align-items: center; gap: 8px; }
+.intelligence-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.intelligence-hero-decoration { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; min-height: 260px; border: 1px solid #5e6a75; background: radial-gradient(circle at 50% 40%,#34506a,#071a2d 68%); }
+.intelligence-hero-decoration span { font: 500 clamp(5rem,12vw,10rem)/1 var(--irl-font-display); color: #c39a65; letter-spacing: -.08em; }
+.intelligence-hero-decoration small { color: #d4c1a6; letter-spacing: .18em; font-size: .63rem; text-align: center; }
+.intelligence-metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin: 22px 0; }
+.intelligence-metrics>div { display: grid; gap: 5px; background: white; padding: 24px; border: 1px solid var(--irl-border-light); border-radius: 9px; }
+.intelligence-metrics strong { font: 500 2.3rem/1 var(--irl-font-display); }
+.intelligence-metrics span { color: var(--irl-text-muted); font-size: .85rem; }
+.intelligence-notice { display: flex; align-items: start; gap: 14px; background: #f3ede1; border: 1px solid #d8c6aa; border-radius: 8px; padding: 18px 22px; margin-bottom: 46px; }
+.intelligence-notice p { margin: 0; line-height: 1.6; }
+.intelligence-notice svg { flex: none; color: var(--irl-gold-dark); }
+.intelligence-section { margin: 54px 0; }
+.intelligence-section-title { margin-bottom: 22px; }
+.intelligence-section-title h2 { font: 500 clamp(2rem,3vw,2.8rem)/1.2 var(--irl-font-display); margin: 8px 0; }
+.intelligence-entity-grid,.intelligence-facts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 15px; }
+.intelligence-entity,.intelligence-fact { padding: 23px; min-width: 0; }
+.intelligence-entity small,.intelligence-fact small { display: block; color: var(--irl-text-muted); text-transform: capitalize; }
+.intelligence-entity h3 { font: 500 1.45rem/1.25 var(--irl-font-display); margin: 8px 0 0; }
+.intelligence-fact { display: flex; flex-direction: column; gap: 13px; }
+.intelligence-fact-header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 6px; }
+.intelligence-fact-header>small { font-weight: 750; }
+.intelligence-fact strong { font: 500 1.4rem/1.35 var(--irl-font-display); overflow-wrap: anywhere; }
+.intelligence-confidence { background: #eef0f2; color: #56626b; border-radius: 99px; padding: 5px 9px; font-size: .68rem; white-space: nowrap; }
+.intelligence-confidence.is-reviewed { background: #e5f2e8; color: #275e34; }
+.intelligence-confidence.is-assumption { background: #fff2db; color: #8a5913; }
+.intelligence-source { color: var(--irl-gold-dark); font-size: .8rem; overflow-wrap: anywhere; }
+.intelligence-gap-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.intelligence-gap { display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border: 1px dashed var(--irl-gold); background: white; border-radius: 8px; }
+.intelligence-gap svg { color: var(--irl-gold-dark); }
+.intelligence-profile-footer { border-top: 1px solid var(--irl-border); padding-top: 25px; display: flex; gap: 25px; justify-content: space-between; color: var(--irl-text-muted); font-size: .85rem; }
+@media (max-width: 900px) { .intelligence-directory-grid,.intelligence-entity-grid,.intelligence-facts { grid-template-columns: repeat(2,minmax(0,1fr)); } .intelligence-hero { grid-template-columns: 1fr; } .intelligence-hero-decoration { min-height: 170px; } }
+@media (max-width: 600px) { .intelligence-directory-heading,.intelligence-profile-footer { flex-direction: column; align-items: stretch; } .intelligence-directory-grid,.intelligence-entity-grid,.intelligence-facts { grid-template-columns: 1fr; } .intelligence-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } .intelligence-hero { padding: 28px; } }
