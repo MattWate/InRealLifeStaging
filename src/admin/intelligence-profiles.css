@@ -55,3 +55,10 @@
 .intelligence-profile-footer { border-top: 1px solid var(--irl-border); padding-top: 25px; display: flex; gap: 25px; justify-content: space-between; color: var(--irl-text-muted); font-size: .85rem; }
 @media (max-width: 900px) { .intelligence-directory-grid,.intelligence-entity-grid,.intelligence-facts { grid-template-columns: repeat(2,minmax(0,1fr)); } .intelligence-hero { grid-template-columns: 1fr; } .intelligence-hero-decoration { min-height: 170px; } }
 @media (max-width: 600px) { .intelligence-directory-heading,.intelligence-profile-footer { flex-direction: column; align-items: stretch; } .intelligence-directory-grid,.intelligence-entity-grid,.intelligence-facts { grid-template-columns: 1fr; } .intelligence-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } .intelligence-hero { padding: 28px; } }
+
+.intelligence-dashboard-nav { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin-block: 28px 40px; }
+.intelligence-dashboard-nav a { display: grid; gap: 10px; padding: 28px; text-decoration: none; border-top: 4px solid var(--irl-gold); }
+.intelligence-dashboard-nav a span { color: var(--irl-gold-dark); font-size: .8rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.intelligence-dashboard-nav a strong { font: 500 2rem/1.2 var(--irl-font-display); }
+.intelligence-dashboard-nav a small { color: var(--irl-text-muted); font-size: .9rem; }
+@media (max-width:600px) { .intelligence-dashboard-nav { grid-template-columns: 1fr; } }
